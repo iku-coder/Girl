@@ -208,7 +208,8 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="heroines.js"></script>
 <script src="life.js"></script>
 <script src="scenes.js"></script>
-<script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });</script>
+<script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });
+window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = o; };</script>
 <script src="scenes/_intro.js"></script>
 <script src="scenes/reina.js"></script>
 <script src="scenes/sayuri.js"></script>
@@ -265,6 +266,25 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="scenes/room/rin.js"></script>
 <script src="scenes/room/karen.js"></script>
 <script src="scenes/room/himeka.js"></script>
+<script src="scenes/eat/hinata.js"></script>
+<script src="scenes/eat/saya.js"></script>
+<script src="scenes/eat/reina.js"></script>
+<script src="scenes/eat/sayuri.js"></script>
+<script src="scenes/eat/akane.js"></script>
+<script src="scenes/eat/kotori.js"></script>
+<script src="scenes/eat/yukino.js"></script>
+<script src="scenes/eat/rio.js"></script>
+<script src="scenes/eat/rei.js"></script>
+<script src="scenes/eat/shiori.js"></script>
+<script src="scenes/eat/aoi.js"></script>
+<script src="scenes/eat/mariko.js"></script>
+<script src="scenes/eat/sumire.js"></script>
+<script src="scenes/eat/mio.js"></script>
+<script src="scenes/eat/nagisa.js"></script>
+<script src="scenes/eat/chihaya.js"></script>
+<script src="scenes/eat/rin.js"></script>
+<script src="scenes/eat/karen.js"></script>
+<script src="scenes/eat/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -426,10 +446,19 @@ function lifePhase(h, st) {
   if (ps.length > 1) return st.route === 'otaku' ? (ps.find(p => /オタク/.test(p.name)) || ps[ps.length - 1]) : (ps.find(p => !/オタク/.test(p.name)) || ps[0]);
   return ps[0];
 }
-function eatLabel(st) {
+function eatLevel(st) {
   const score = st.habit * 100 + (st.cap - C.baseCapacity) / 1.4;
-  let r = (C.eatLabels || [])[0]; (C.eatLabels || []).forEach(x => { if (score >= x.min) r = x; });
-  return r ? r.text : '';
+  let r = 0; (C.eatLabels || []).forEach((x, i) => { if (score >= x.min) r = i; });
+  return r;
+}
+function eatLabel(st) { const x = (C.eatLabels || [])[eatLevel(st)]; return x ? x.text : ''; }
+// 食べる量の区分ごとのセリフ（scenes/eat/<id>.js）。kind: talk / gift / full
+function eatSay(h, kind) {
+  const E = (window.EAT_LINES || {})[h.id]; const lv = eatLevel(S.h[h.id]);
+  const arr = E && E[kind] && E[kind][Math.min(lv, E[kind].length - 1)];
+  if (!arr || !arr.length) return false;
+  [].concat(pick(arr)).forEach(s => (/^（/.test(s) ? narr(s) : say(h.name, s, h.color)));
+  return true;
 }
 const repBand = s => (s <= 4 ? 'early' : s <= 8 ? 'mid' : s <= 12 ? 'late' : 'final');
 function rollReputation(h, st) {
@@ -822,7 +851,14 @@ function night() {
     const maint = st.weight * C.maintPerKg;
     const own = maint * (C.baseEatRatio + C.habitEatBonus * st.habit);
     const raw = (own + st.intake - maint) / C.kcalPerKg;
-    const dW = raw > 0 ? raw * C.weightGainBoost : raw;
+    let dW = raw > 0 ? raw * C.weightGainBoost : raw;
+    // 1か月に増える量の上限（monthlyGainMax）。暦の月ごとに数え直す
+    const mk = dateOf(S.day).getMonth();
+    if (!st.gm || st.gm.m !== mk) st.gm = { m: mk, kg: 0, hit: false };
+    if (dW > 0 && C.monthlyGainMax) {
+      dW = Math.min(dW, Math.max(0, C.monthlyGainMax - st.gm.kg)); st.gm.kg += dW;
+      if (!st.gm.hit && st.gm.kg >= C.monthlyGainMax - 1e-6) { st.gm.hit = true; rep.events.push(`${h.name}の体重は、今月はもうこれ以上増えないようだ（今月 +${C.monthlyGainMax.toFixed(1)}kg）`); }
+    }
     const from = st.weight;
     st.weight = Math.min(maxW(h), Math.round((st.weight + dW) * 100) / 100);
     const ns = stageOf(h, st.weight);
@@ -1457,7 +1493,7 @@ const ACT = {
     const h = room(), st = S.h[h.id];
     st.talked = true;
     addAff(h, C.talkAffection); addWary(h, -C.talkWaryDown);
-    if (!tryScene(h, 'talk')) speak(h, 'talk');
+    if (!(Math.random() < (C.eatTalkChance || 0) && eatSay(h, 'talk')) && !tryScene(h, 'talk')) speak(h, 'talk');
     render();
   },
   giftOpen() { openModal('gift', giftHTML(room())); },
@@ -1469,7 +1505,7 @@ const ACT = {
     if (bad.length && !favorable(st)) { bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
     const warmDislike = bad.length > 0;
     if (st.full + f.full > st.cap) {
-      speak(h, 'full'); addWary(h, C.waryOverfull);
+      if (!eatSay(h, 'full')) speak(h, 'full'); addWary(h, C.waryOverfull);
       if (st.full >= st.cap * .7) st.cap = Math.min(C.maxCapacity, st.cap + C.stretchOnRefuse);
       render(); return;
     }
@@ -1492,6 +1528,7 @@ const ACT = {
     }
     else if (good.length) { good.forEach(t => { st.known[t] = 'like'; }); speak(h, 'giftLike'); addAff(h, C.giftLikeAffection); }
     else { speak(h, 'giftNormal'); addAff(h, C.giftAffection); }
+    if (Math.random() < (C.eatGiftChance == null ? 1 : C.eatGiftChance)) eatSay(h, 'gift');
     narr(`（${f.name}を食べている）`);
     if (!st.captured && st.gifts > C.giftAllowance[tierOf(st.aff)]) { addWary(h, C.waryTooMany); narr('（少し不審がられたようだ）'); }
     stretch(h); render();
@@ -1512,7 +1549,7 @@ const ACT = {
     const h = d.id ? H[d.id] : room(), st = S.h[h.id], base = D.meals[d.kind];
     const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
     const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : base;
-    if (st.full + m.full > st.cap) { speak(h, 'full'); render(); return; }
+    if (st.full + m.full > st.cap) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
     const kcal = m.kcal;
     if (rcp) narr(`（${rcp.name}を作った）`);
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;

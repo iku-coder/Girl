@@ -34,6 +34,7 @@ window.GAME_DATA = {
     baseEatRatio: 0.97,         // 食習慣0のときの自炊量（維持カロリー比）
     habitEatBonus: 0.5,         // 食習慣1.0で +50% 食べるようになる
     kcalPerKg: 7000,
+    monthlyGainMax: 5.0,        // 1か月（暦の月）に増える体重の上限（kg）。v1.5
     weightGainBoost: 1.2,       // ゲーム用の増量倍率（v0.9で2.5→1.0、v1.5で1.2。増えるときだけ掛かる。減るときは等倍）
     habitDecayPerDay: 0.005,
     habitPerGift: 0.01,
@@ -158,8 +159,10 @@ window.GAME_DATA = {
     // 食べる量の表示（食習慣と胃袋の大きさから）
     eatLabels: [
       { min: 0,   text: '小食' }, { min: 25, text: '人並み' }, { min: 50, text: 'よく食べる' },
-      { min: 80,  text: '大食い' }, { min: 115, text: '底なし' }
+      { min: 80,  text: '大食い' }, { min: 115, text: '底なし' }, { min: 160, text: '無尽蔵' }
     ],
+    eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
+    eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
     tagNames: { sweet: '甘いもの', snack: 'スナック', fried: '揚げ物', meal: 'ごはん', alcohol: 'お酒' },
 
