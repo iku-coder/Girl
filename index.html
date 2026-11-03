@@ -74,6 +74,11 @@ main{flex:1;min-height:0;overflow-y:auto;padding-block:14px}
 .badge.off{background:none;color:var(--muted);border:1px solid var(--line)}
 .chip.cap{border-color:var(--bad);color:var(--bad)}
 .desc{font-size:11px;color:var(--muted);line-height:1.5}
+.nameinput{width:100%;margin-top:10px;font:inherit;font-size:18px;padding:8px 10px;background:var(--ink);color:var(--paper);border:1px solid var(--line);border-radius:6px}
+.changes{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--panel)}
+.changes summary{cursor:pointer;font-weight:700;display:flex;gap:8px;align-items:center}
+.changes ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px;font-size:13px}
+.changes li b{color:var(--lamp);font-weight:500}
 .legend{font-size:12px;color:var(--muted);margin-top:8px}
 
 .stats{display:grid;gap:10px;margin-top:16px}
@@ -93,6 +98,8 @@ h2{font-family:var(--display);font-weight:400;font-size:19px;margin:0 0 2px;lett
 .figbox .tag{position:absolute;top:4px;left:4px;font-size:10px;color:var(--muted);background:var(--ink);padding:0 4px;border-radius:3px}
 .info{display:grid;gap:7px;min-width:0}
 .row{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.row>span:first-child{white-space:nowrap}
+.row>span:last-child{text-align:right}
 .chip{display:inline-block;font-size:11px;padding:0 7px;border-radius:10px;border:1px solid var(--line);color:var(--muted)}
 .chip.warn{border-color:var(--bad);color:var(--bad)}
 .chip.like{border-color:var(--good);color:var(--good)}
@@ -142,7 +149,25 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 
 <script src="data.js"></script>
 <script src="heroines.js"></script>
+<script src="life.js"></script>
 <script src="scenes.js"></script>
+<script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });</script>
+<script src="scenes/reina.js"></script>
+<script src="scenes/sayuri.js"></script>
+<script src="scenes/akane.js"></script>
+<script src="scenes/kotori.js"></script>
+<script src="scenes/rio.js"></script>
+<script src="scenes/rei.js"></script>
+<script src="scenes/shiori.js"></script>
+<script src="scenes/aoi.js"></script>
+<script src="scenes/mariko.js"></script>
+<script src="scenes/sumire.js"></script>
+<script src="scenes/mio.js"></script>
+<script src="scenes/nagisa.js"></script>
+<script src="scenes/chihaya.js"></script>
+<script src="scenes/rin.js"></script>
+<script src="scenes/karen.js"></script>
+<script src="scenes/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -264,6 +289,7 @@ function checkMilestones(h, st, from, to) {
         const up = nb > st.clothes.bottom ? 'bottom' : 'top';
         const prev = CS[st.clothes[up]].name;
         st.clothes = { top: nt, bottom: nb };
+        (st.clothesLog = st.clothesLog || []).push({ day: S.day, top: nt, bottom: nb });
         queueEvent(st, 'clothesUp', { size: CS[st.clothes[up]].name, prev });
       }
     }
@@ -290,6 +316,30 @@ function playMilestone(h, st) {
   });
   return true;
 }
+// 今の段階に当てはまる「生活の変化」（life.js）。姫華は段階13以降、ルートで出し分け
+function lifePhase(h, st) {
+  const L = (window.GAME_LIFE || {})[h.id]; if (!L) return null;
+  const ps = L.phases.filter(p => st.stage >= p.from && st.stage <= p.to);
+  if (!ps.length) return null;
+  if (ps.length > 1) return st.route === 'otaku' ? (ps.find(p => /オタク/.test(p.name)) || ps[ps.length - 1]) : (ps.find(p => !/オタク/.test(p.name)) || ps[0]);
+  return ps[0];
+}
+function eatLabel(st) {
+  const score = st.habit * 100 + (st.cap - C.baseCapacity) / 1.4;
+  let r = (C.eatLabels || [])[0]; (C.eatLabels || []).forEach(x => { if (score >= x.min) r = x; });
+  return r ? r.text : '';
+}
+const repBand = s => (s <= 4 ? 'early' : s <= 8 ? 'mid' : s <= 12 ? 'late' : 'final');
+function rollReputation(h, st) {
+  if (st.stage < 2 || Math.random() >= (C.reputationChance || 0)) return null;
+  const who = pick((D.circles || {})[h.id] || ['近所の人']), tpl = pick((D.reputation || {})[repBand(st.stage)] || ['']);
+  const text = tpl.replace('{who}', who);
+  st.rep = [{ day: S.day, text }].concat(st.rep || []).slice(0, C.reputationKeep || 4);
+  return text;
+}
+// 好み：苦手な物も、好意以上で何度か食べると好きになる
+const isDislike = (h, st, tag) => h.dislikes.includes(tag) && !(st.acquired || {})[tag];
+const isLike = (h, st, tag) => h.likes.includes(tag) || !!(st.acquired || {})[tag];
 function sinceLastText(st) {
   if (st.lastSeenW == null) return '';
   const d = st.weight - st.lastSeenW;
@@ -298,8 +348,10 @@ function sinceLastText(st) {
 }
 
 /* ---------- messages ---------- */
+// 「〇〇」は主人公の名前に置き換える（下の名前で呼ぶ段階のセリフ用）
+const nameFill = s => String(s).replace(/〇〇/g, (S && S.playerName) || C.defaultPlayerName || '悠');
 function say(name, text, color) {
-  incoming.push({ name, text, color });
+  incoming.push({ name, text: nameFill(text), color });
   if (!flushPending) { flushPending = true; queueMicrotask(flush); }
 }
 const narr = t => say('', t);
@@ -330,7 +382,7 @@ function drawMsg() {
   if (line) html += (line.name ? `<div class="who ${line.me ? 'me' : ''}" style="color:${esc(line.color || '')}">${esc(line.name)}</div>` : '') +
     `<div class="txt ${line.name ? '' : 'narr'}">${esc(line.text)}</div>`;
   else if (ch.choice.prompt) html += `<div class="txt narr">${esc(ch.choice.prompt)}</div>`;
-  if (ch) html += `<div class="choices">${ch.choice.list.map((c, i) => `<button class="pickbtn" data-act="pick" data-i="${i}">${esc(c.text)}</button>`).join('')}</div>`;
+  if (ch) html += `<div class="choices">${ch.choice.list.map((c, i) => `<button class="pickbtn" data-act="pick" data-i="${i}">${esc(nameFill(c.text))}</button>`).join('')}</div>`;
   if (more) html += '<div class="more">▼ タップで次へ</div>';
   box.innerHTML = html;
   box.classList.toggle('choosing', !!ch);
@@ -339,6 +391,8 @@ function drawMsg() {
   if (settled && waitingAdvance) queueMicrotask(tryAdvance);
 }
 $('#tap').addEventListener('click', () => { Q.shift(); drawMsg(); });
+// 「最近の様子」の開閉を覚えておく
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('changes') && S) S.openChanges = e.target.open; }, true);
 
 /* ---------- state ---------- */
 function freshHeroine(h) {
@@ -348,6 +402,7 @@ function freshHeroine(h) {
   st.stage = stageOf(h, st.weight); st.seenStage = st.stage;
   const m = measure(h, st.weight);
   st.clothes = m ? { top: needTop(m), bottom: needBottom(m) } : null;
+  st.clothesStart = st.clothes ? Object.assign({}, st.clothes) : null;
   st.ms = []; st.pend = []; st.lastSeenW = null;
   return st;
 }
@@ -466,6 +521,13 @@ function collectRent(h) {
 /* ---------- 会話シーン（scenes.js） ----------
    シーン = 条件 + ノードの集まり。ノードは セリフ → 効果 → 分岐/選択肢/次へ */
 const SC = window.GAME_SCENES || {};
+// キャラごとの追加シーン（scenes/<id>.js）を取り込む。stageUp・milestone はそのキャラのセリフに上書き
+(window.SCENE_ADDS || []).forEach(({ id, list, extra }) => {
+  SC[id] = (SC[id] || []).concat(list || []);
+  const h = D.heroines.find(x => x.id === id); if (!h || !extra) return;
+  if (extra.stageUp) h.lines.stageUp = Object.assign({}, h.lines.stageUp || {}, extra.stageUp);
+  if (extra.milestone) h.lines.milestone = Object.assign({}, h.lines.milestone || {}, extra.milestone);
+});
 let inScene = false, sceneNotes = [];
 function endScene() { inScene = false; const n = sceneNotes; sceneNotes = []; n.forEach(f => f()); }
 const PLAYER = C.playerLabel || 'あなた';
@@ -486,6 +548,7 @@ function condOk(h, c, ctx = {}) {
   if (c.maxStage != null && st.stage > c.maxStage) return false;
   if (c.minMoney != null && S.money < c.minMoney) return false;
   if (c.chance != null && Math.random() >= c.chance) return false;
+  if (c.minHabit != null && st.habit < c.minHabit) return false;
   return true;
 }
 function pickScene(h, type, ctx = {}) {
@@ -505,7 +568,7 @@ function tryScene(h, type, ctx) { const sc = pickScene(h, type, ctx); if (sc) { 
 function sayLine(h, l) {
   if (typeof l === 'string') { if (l.startsWith('（')) narr(l); else say(h.name, l, h.color); return; }
   const [w, txt] = l;
-  if (w === 'p') { incoming.push({ name: PLAYER, text: txt, me: true }); if (!flushPending) { flushPending = true; queueMicrotask(flush); } }
+  if (w === 'p') { incoming.push({ name: PLAYER, text: nameFill(txt), me: true }); if (!flushPending) { flushPending = true; queueMicrotask(flush); } }
   else if (w === 'n') narr(txt);
   else say(h.name, txt, h.color);
 }
@@ -615,6 +678,8 @@ function night() {
     st.wary = clamp(st.wary - C.waryDecayPerNight, 0, 100);
     Object.assign(st, { full: 0, intake: 0, gifts: 0, talked: false, ate: false });
     rep.rows.push({ id: h.id, from, to: st.weight });
+    const rumor = rollReputation(h, st);
+    if (rumor) rep.events.push(`うわさ：${h.name}は、${rumor}。`);
   });
   if (S.building < 30) rep.events.push('建物の傷みがひどく、住人たちが不満そうだ。');
   S.building = clamp(S.building - C.buildingDecayPerDay, 0, 100);
@@ -738,6 +803,25 @@ function bodyRows(h, st) {
   return `<div class="row"><span>体重</span><span class="num">${note}${st.weight.toFixed(1)}kg（BMI ${bmi(h, st.weight).toFixed(1)}）</span></div>` +
     (m ? `<div class="row"><span>スリーサイズ</span><span class="num">B${Math.round(m.bust)}(${cupOf(m)})・W${Math.round(m.waist)}・H${Math.round(m.hip)}</span></div>` : '');
 }
+// 見た目以外の変化：最近の様子（生活）・服のサイズの移り変わり・周りの声
+function changesHTML(h, st) {
+  const ph = lifePhase(h, st), L = (window.GAME_LIFE || {})[h.id] || {};
+  const order = ['食生活', '仕事', '生活', '家族', '神社', 'ヨガ教室', 'お金', '夫との関係', '渚との関係', '姉との関係', '性格', '心理', '様子'];
+  const items = ph ? order.filter(k => ph.items[k]).map(k => `<li><b>${esc(k)}</b>　${esc(ph.items[k])}</li>`).join('') : '';
+  const lowNote = ph && L.lowNote && !favorable(st) ? `<li class="muted">（まだ心を開いていないので、この変化は ${esc(L.lowNote)}）</li>` : '';
+  const log = (st.clothesLog || []);
+  const sizes = st.clothes ? (() => {
+    const first = st.clothesStart || st.clothes; const seq = [first.bottom].concat(log.map(x => x.bottom));
+    return [...new Set(seq)].map(i => CS[i].name).join(' → ');
+  })() : '';
+  const rumors = (st.rep || []).map(r => `<li>${esc(r.text)}<span class="muted num">（${r.day}日目）</span></li>`).join('');
+  if (!items && !sizes && !rumors) return '';
+  return `<details class="changes" ${S.openChanges ? 'open' : ''}><summary>最近の様子${ph && ph.name ? `<span class="chip">${esc(ph.name.split(/[ 　]/)[0])}</span>` : ''}</summary>
+    ${items || lowNote ? `<ul>${items}${lowNote}</ul>` : '<p class="muted">まだ目立った変化はない。</p>'}
+    ${sizes ? `<div class="sub">服のサイズの移り変わり（下）：${esc(sizes)}</div>` : ''}
+    ${rumors ? `<div class="sub" style="margin-top:6px">周りの声</div><ul>${rumors}</ul>` : ''}
+  </details>`;
+}
 function roomHTML(h) {
   const st = S.h[h.id], t = tierOf(st.aff), s = slotName();
   const known = Object.entries(st.known);
@@ -757,12 +841,13 @@ function roomHTML(h) {
       ${st.clothes ? `<div class="desc">服：上 ${CS[st.clothes.top].name}／下 ${CS[st.clothes.bottom].name}。${esc(tightText(h, st))}</div>` : ''}
       <div class="row"><span>満腹</span><span class="num">${st.full}／${st.cap}</span></div>
       <div class="bar full"><i style="width:${st.full / st.cap * 100}%"></i></div>
-      <div class="row"><span>食習慣</span><span class="num">${Math.round(st.habit * 100)}%</span></div>
+      <div class="row"><span>食べる量</span><span>${esc(eatLabel(st))}<span class="muted num">（食習慣${Math.round(st.habit * 100)}%）</span></span></div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         ${st.wary >= 30 ? `<span class="chip warn">警戒 ${Math.round(st.wary)}</span>` : ''}
-        ${known.map(([tag, v]) => `<span class="chip ${v === 'like' ? 'like' : 'warn'}">${v === 'like' ? '好き' : '苦手'}：${C.tagNames[tag] || tag}</span>`).join('')}
+        ${known.map(([tag, v]) => `<span class="chip ${v === 'like' ? 'like' : 'warn'}">${(st.acquired || {})[tag] ? '好きになった' : v === 'like' ? '好き' : '苦手'}：${C.tagNames[tag] || tag}</span>`).join('')}
       </div>
     </div></div>
+    ${changesHTML(h, st)}
     <div class="acts">
       <button class="btn" data-act="talk" ${st.talked ? 'disabled' : ''}>話す<small>${st.talked ? '今日はもう話した' : '親密度が上がる'}</small></button>
       <button class="btn" data-act="giftOpen" ${invCount() ? '' : 'disabled'}>差し入れ<small>${invCount() ? `手持ち ${invCount()}個` : '手持ちなし'}</small></button>
@@ -809,7 +894,7 @@ function giftHTML(h) {
 function nightHTML(rep) {
   return `<h3>${rep.date}（${rep.day}日目）の夜</h3>
     ${rep.rows.map(r => { const h = H[r.id], d = r.to - r.from;
-      return `<div class="nrow"><b>${esc(h.name)}</b><span class="num">${r.from.toFixed(1)} → ${r.to.toFixed(1)}kg <span class="${d > 0 ? 'up' : 'muted'}">(${d >= 0 ? '+' : ''}${d.toFixed(2)})</span></span></div>`; }).join('')}
+      return `<div class="nrow"><b>${esc(h.name)}</b><span class="num">${r.from.toFixed(1)} → ${r.to.toFixed(1)}kg <span class="${d > 0 ? 'up' : 'muted'}">(${d >= 0 ? '+' : ''}${d.toFixed(1)})</span></span></div>`; }).join('')}
     ${rep.events.length ? `<div style="margin-top:10px;display:grid;gap:4px">${rep.events.map(e => `<div>${esc(e)}</div>`).join('')}</div>` : ''}
     <div class="sub" style="margin-top:8px">自動セーブしました</div>
     <button class="btn primary close" data-act="close">朝になる</button>`;
@@ -847,7 +932,15 @@ function devHTML() {
 const room = () => H[S.view.id];
 const ACT = {
   newgame() {
-    S = newState(); screen = 'game'; render();
+    openModal('name', `<h3>主人公の名前</h3><div class="sub">親しくなると、ヒロインが下の名前で呼んでくれる。</div>
+      <input id="pname" class="nameinput" maxlength="8" value="${esc(C.defaultPlayerName || '悠')}" aria-label="主人公の下の名前">
+      <div class="acts"><button class="btn primary wide" data-act="startGame">この名前ではじめる</button></div>`);
+    setTimeout(() => { const i = $('#pname'); if (i) i.select(); }, 30);
+  },
+  startGame() {
+    const nm = ($('#pname') && $('#pname').value.trim()) || C.defaultPlayerName || '悠';
+    closeModal();
+    S = newState(); S.playerName = nm; screen = 'game'; render();
     narr('祖父が遺したのは、築五十年の木造アパートだった。');
     narr('101号室に住みながら、管理人として住人の面倒を見ることになった。');
     narr('とはいえ、住人たちとはまだ顔見知り程度。用もなく部屋を訪ねるわけにはいかない。');
@@ -897,7 +990,12 @@ const ACT = {
     if (d.op === 'monthEnd') { while (!isMonthEnd()) S.day++; S.slot = 3; S.rentDone = {}; closeModal(); render(); narr('月末の夜まで飛ばした。'); return; }
     if (d.op === 'pkg') { S.packages[d.id] = { day: S.day }; }
     if (d.op === 'showAll') S.devShowAll = !S.devShowAll;
-    if (d.op === 'route') { const st = S.h[d.id]; st.route = st.route === 'otaku' ? null : 'otaku'; }
+    if (d.op === 'route') {
+      const st = S.h[d.id]; st.route = st.route === 'otaku' ? null : 'otaku';
+      // 会話シーンの条件にも使えるよう、ルートをフラグ（<id>_route_otaku）にも反映
+      const fl = flagsOf(H[d.id]), f = d.id + '_route_otaku', i = fl.indexOf(f);
+      if (st.route === 'otaku' && i < 0) fl.push(f); else if (st.route !== 'otaku' && i >= 0) fl.splice(i, 1);
+    }
     if (d.op === 'bankbook' && !S.bankbook) S.bankbook = 'ready';
     if (d.op === 'aff35') { addAff(H[d.id], 35 - S.h[d.id].aff); }
     render(); openModal('dev', devHTML());
@@ -953,7 +1051,10 @@ const ACT = {
       if (sl) say(h.name, sl, h.color);
       else { narr(`（${h.name}の体つきが「${stageInfo(st.stage).name}」になっている）`); speak(h, 'greet'); }
       st.seenStage = st.stage;
-    } else if (!playMilestone(h, st)) speak(h, 'greet');
+    } else if (!playMilestone(h, st)) {
+      // ときどき、変化に気づく会話（visit シーン）
+      if (!(Math.random() < (C.visitSceneChance || 0) && tryScene(h, 'visit'))) speak(h, 'greet');
+    }
     render();
   },
   talk() {
@@ -968,7 +1069,7 @@ const ACT = {
     const h = room(), st = S.h[h.id], f = FOOD[d.id];
     closeModal();
     if (!st.captured && st.wary >= C.waryGiftRefuse) { speak(h, 'wary'); render(); return; }
-    const bad = f.tags.filter(t => h.dislikes.includes(t));
+    const bad = f.tags.filter(t => isDislike(h, st, t));
     if (bad.length && !favorable(st)) { bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
     const warmDislike = bad.length > 0;
     if (st.full + f.full > st.cap) {
@@ -979,8 +1080,20 @@ const ACT = {
     S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
     st.full += f.full; st.intake += f.kcal; st.gifts++;
     st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
-    const good = f.tags.filter(t => h.likes.includes(t));
-    if (warmDislike) { bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, h.lines.giftDislikeWarm ? 'giftDislikeWarm' : 'giftNormal'); addAff(h, 1); }
+    const good = f.tags.filter(t => isLike(h, st, t));
+    if (warmDislike) {
+      bad.forEach(t => { st.known[t] = 'dislike'; });
+      speak(h, 'giftDislikeWarm'); addAff(h, 1);
+      // 何度か食べるうちに、苦手だった物が好きになる
+      bad.forEach(t => {
+        st.ateDisliked = st.ateDisliked || {}; st.ateDisliked[t] = (st.ateDisliked[t] || 0) + 1;
+        if (st.ateDisliked[t] >= (C.acquireAfter || 3)) {
+          (st.acquired = st.acquired || {})[t] = true; st.known[t] = 'like';
+          narr(`（${h.name}は、前は苦手だった${C.tagNames[t] || t}を、すっかりおいしそうに食べるようになった）`);
+          st.rep = [{ day: S.day, text: `苦手だった${C.tagNames[t] || t}が好きになった` }].concat(st.rep || []).slice(0, C.reputationKeep || 4);
+        }
+      });
+    }
     else if (good.length) { good.forEach(t => { st.known[t] = 'like'; }); speak(h, 'giftLike'); addAff(h, C.giftLikeAffection); }
     else { speak(h, 'giftNormal'); addAff(h, C.giftAffection); }
     narr(`（${f.name}を食べている）`);
