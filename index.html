@@ -246,6 +246,25 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="scenes/daily/rin.js"></script>
 <script src="scenes/daily/karen.js"></script>
 <script src="scenes/daily/himeka.js"></script>
+<script src="scenes/room/hinata.js"></script>
+<script src="scenes/room/saya.js"></script>
+<script src="scenes/room/reina.js"></script>
+<script src="scenes/room/yukino.js"></script>
+<script src="scenes/room/sayuri.js"></script>
+<script src="scenes/room/akane.js"></script>
+<script src="scenes/room/kotori.js"></script>
+<script src="scenes/room/rio.js"></script>
+<script src="scenes/room/rei.js"></script>
+<script src="scenes/room/shiori.js"></script>
+<script src="scenes/room/aoi.js"></script>
+<script src="scenes/room/mariko.js"></script>
+<script src="scenes/room/sumire.js"></script>
+<script src="scenes/room/mio.js"></script>
+<script src="scenes/room/nagisa.js"></script>
+<script src="scenes/room/chihaya.js"></script>
+<script src="scenes/room/rin.js"></script>
+<script src="scenes/room/karen.js"></script>
+<script src="scenes/room/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -755,6 +774,7 @@ function pickChoice(i) {
   const item = Q[idx]; if (!item || !item.choice) return;
   Q.splice(0, idx + 1);
   const { h, sc, ctx, list } = item.choice, c = list[i];
+  if (c.sysAct) { Q = Q.slice(); settled = false; inviteAction(h, c.sysAct); return; }   // 自室に呼んだあとの選択（手料理／夜を過ごす）
   const rest = Q; Q = []; const held = incoming; incoming = [];
   if (!c.silent) sayLine(h, c.text.startsWith('（') ? ['n', c.text] : ['p', c.line || c.text]);
   (c.say || []).forEach(l => sayLine(h, l));
@@ -798,7 +818,8 @@ function night() {
     const st = S.h[h.id];
     const maint = st.weight * C.maintPerKg;
     const own = maint * (C.baseEatRatio + C.habitEatBonus * st.habit);
-    const dW = (own + st.intake - maint) / C.kcalPerKg * C.weightGainBoost;
+    const raw = (own + st.intake - maint) / C.kcalPerKg;
+    const dW = raw > 0 ? raw * C.weightGainBoost : raw;
     const from = st.weight;
     st.weight = Math.min(maxW(h), Math.round((st.weight + dW) * 100) / 100);
     const ns = stageOf(h, st.weight);
@@ -977,6 +998,46 @@ function finishTutorial() {
   tut('家賃の回収は毎月の月末。夜になったら、自室で寝て一日を終えよう。');
 }
 
+/* ---------- 自室に呼ぶ（攻略後・親密度95以上） ---------- */
+function inviteHTML() {
+  const list = HS().filter(h => S.h[h.id].captured);
+  return `<h3>101号室に呼ぶ</h3><div class="sub">攻略した住人を自室に呼んで、手料理を振る舞うか、一緒に夜を過ごす（夜を過ごすのは夜だけ）。</div>
+    ${list.map(h => { const st = S.h[h.id], here = present(h), done = st.invitedDay === S.day;
+      return `<div class="item"><div>${esc(h.name)}<small>${here ? (done ? '今日はもう呼んだ' : '部屋にいる') : '留守'}・親密度 ${Math.round(st.aff)}</small></div><span></span>
+        <button class="mini" data-act="invitePick" data-id="${h.id}" ${here && !done ? '' : 'disabled'}>呼ぶ</button></div>`; }).join('')}
+    <button class="btn close" data-act="close">やめる</button>`;
+}
+function startInvite(h) {
+  const st = S.h[h.id];
+  st.invitedDay = S.day; S.invite = { id: h.id }; S.view = { type: 'self' };
+  narr(`${h.name}を101号室に呼んだ。`);
+  if (!tryScene(h, 'invite')) speak(h, 'invite');
+  // 会話のあとで、どうするかを選ぶ
+  const list = [{ text: '（手料理を振る舞う）', sysAct: 'cook' }];
+  if (slotName() === '夜') list.push({ text: '（一緒に夜を過ごす）', sysAct: 'night' });
+  list.push({ text: '（少し話して、部屋まで送る）', sysAct: 'bye' });
+  incoming.push({ choice: { h, sc: null, ctx: {}, list, prompt: 'どうする？' } });
+  if (!flushPending) { flushPending = true; queueMicrotask(flush); }
+  render();
+}
+function inviteAction(h, act) {
+  const st = S.h[h.id];
+  if (act === 'cook') { drawMsg(); ACT.cookMenu({ id: h.id }); return; }
+  const held = incoming; incoming = [];
+  if (act === 'night') {
+    sayLine(h, ['n', '（ちゃぶ台を片づけて、布団を敷いた）']);
+    inScene = true;
+    if (!tryScene(h, 'night')) { (D.commonLines.night || []).forEach(l => sayLine(h, l)); endScene(); }
+    st.nights = (st.nights || 0) + 1; addAff(h, 2);
+  } else {
+    sayLine(h, ['n', `（しばらく話してから、${h.name}を部屋まで送った）`]); addAff(h, 1);
+  }
+  const added = incoming; incoming = held;
+  Q = added.concat(Q); settled = false;
+  S.invite = null; S.view = { type: 'self' };
+  render(); drawMsg(); advanceSlot();
+}
+
 /* ---------- views ---------- */
 function render() {
   const main = $('#main');
@@ -1050,6 +1111,7 @@ function selfHTML() {
     { act: 'manage', label: s === '朝' || s === '夕' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `出かける住人と会えるかも／状態 +${C.manageGain}` : s === '夕' ? `帰ってくる住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: true },
     { act: 'shop', label: '買い出し', note: '差し入れを買う（夜以外）', ok: s !== '夜' },
     { act: 'cook', label: '料理の練習', note: `夕・夜／${yen(C.cookPracticeCost)}／腕 ${S.cook}`, ok: (s === '夕' || s === '夜') && S.cook < cookMax() && S.money >= C.cookPracticeCost },
+    { act: 'inviteOpen', label: '部屋に呼ぶ', note: `夕・夜／攻略した住人を101号室に`, ok: (s === '夕' || s === '夜') && HS().some(h => S.h[h.id].captured) },
     { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `夕・夜／${C.prepPortions}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜') && S.cook >= C.prepFrom },
     { act: 'rest', label: s === '夜' ? '寝る' : 'ひと休み', note: s === '夜' ? '1日を終える' : '次の時間帯へ', ok: true, primary: s === '夜' }
   ];
@@ -1175,6 +1237,7 @@ function openModal(kind, html) {
 function closeModal() {
   const kind = modalKind; modalKind = null;
   $('#modal').hidden = true; $('#modal').innerHTML = '';
+  if (kind === 'cook' && S && S.invite) { const h = H[S.invite.id]; S.invite = null; narr(`（結局、${h.name}とお茶を飲んで、部屋まで送った）`); advanceSlot(); return; }
   if (kind === 'shop' && shopBought) { shopBought = false; narr('買い出しから戻った。'); advanceSlot(); }
   else if (kind === 'night') { narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`); render(); }
 }
@@ -1431,17 +1494,19 @@ const ACT = {
     stretch(h); render();
   },
   // 手料理：作れる料理から選ぶ
-  cookMenu() {
-    const h = room(), st = S.h[h.id];
+  inviteOpen() { openModal('invite', inviteHTML()); },
+  invitePick(d) { closeModal(); startInvite(H[d.id]); },
+  cookMenu(d) {
+    const h = d && d.id ? H[d.id] : room(), st = S.h[h.id];
     const isLike = r => r.tags.some(t => h.likes.includes(t) || (st.acquired || {})[t]);
     openModal('cook', `<h3>${esc(h.name)}に何を作る？</h3><div class="sub">料理の腕 ${S.cook}／${cookMax()}・満腹 ${st.full}／${st.cap}</div>
       ${knownRecipes().slice().reverse().map(r => `<div class="item"><div>${esc(r.name)} ${st.known && r.tags.some(t => st.known[t] === 'like') && isLike(r) ? '<span class="chip like">好き</span>' : ''}<small>${r.kcal}kcal・満腹+${r.full}</small></div>
-        <span class="num">${yen(r.cost)}</span><button class="mini" data-act="meal" data-kind="homeCook" data-recipe="${r.id}" ${S.money >= r.cost ? '' : 'disabled'}>作る</button></div>`).join('')}
+        <span class="num">${yen(r.cost)}</span><button class="mini" data-act="meal" data-kind="homeCook" data-recipe="${r.id}" data-id="${h.id}" ${S.money >= r.cost ? '' : 'disabled'}>作る</button></div>`).join('')}
       <button class="btn close" data-act="close">やめる</button>`);
   },
   meal(d) {
-    if (modalKind === 'cook') closeModal();
-    const h = room(), st = S.h[h.id], base = D.meals[d.kind];
+    if (modalKind === 'cook') { modalKind = 'cookDone'; closeModal(); }
+    const h = d.id ? H[d.id] : room(), st = S.h[h.id], base = D.meals[d.kind];
     const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
     const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : base;
     if (st.full + m.full > st.cap) { speak(h, 'full'); render(); return; }
@@ -1451,8 +1516,8 @@ const ACT = {
     if (d.kind === 'eatOut') sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
     st.habit = clamp(st.habit + m.habit, 0, 1);
     speak(h, d.kind); addAff(h, m.affection); stretch(h);
-    narr(d.kind === 'eatOut' ? '（ふたりで食事をして、部屋まで送った）' : '（ふたりで食卓を囲んだ）');
-    S.view = { type: 'map' }; advanceSlot();
+    narr(d.kind === 'eatOut' ? '（ふたりで食事をして、部屋まで送った）' : S.invite ? '（101号室のちゃぶ台で、ふたりで食卓を囲んだ）' : '（ふたりで食卓を囲んだ）');
+    S.view = S.invite ? { type: 'self' } : { type: 'map' }; S.invite = null; advanceSlot();
   },
   leave() { S.view = { type: 'map' }; advanceSlot(); },
   uni() {
