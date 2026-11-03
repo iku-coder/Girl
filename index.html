@@ -456,6 +456,9 @@ const BY_NAME = Object.fromEntries(D.heroines.map(h => [h.name, h.id]));
 function say(name, text, color) {
   const hid = BY_NAME[name];
   if (hid && S && S.h[hid]) S.h[hid].met = true;   // 一度でも言葉を交わしたら「会ったことがある」
+  // 攻略後に呼び方が変わるヒロイン（例：雪乃「〇〇さん」→「〇〇くん」）。heroines.js の callAfterCapture: { from, to }
+  const hh = hid && H[hid];
+  if (hh && hh.callAfterCapture && S.h[hid] && S.h[hid].captured) text = String(text).split(hh.callAfterCapture.from).join(hh.callAfterCapture.to);
   incoming.push({ name, text: nameFill(text), color, hid });
   if (!flushPending) { flushPending = true; queueMicrotask(flush); }
 }
