@@ -491,8 +491,46 @@ function normalize() {
   if (S.view.type === 'room' && !H[S.view.id]) S.view = { type: 'map' };
   D.heroines.forEach(h => { const st = S.h[h.id]; st.stage = stageOf(h, st.weight); if (st.seenStage > st.stage) st.seenStage = st.stage; });
 }
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
-function loadSaved() { try { const t = localStorage.getItem(SAVE_KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+/* セーブ：このブラウザ（localStorage）と、claude.ai のアカウントごとの保存場所（db の data/users/<自分のid>/save。本人しか読めない）の両方に保存する。
+   つづきからは、新しいほうを読む。claude.ai の外で開いたときはブラウザの保存だけ */
+let cloudDoc = null, cloudSave = null, cloudBusy = false, cloudNext = null, cloudState = 'none';
+async function initCloud() {
+  if (!(window.claude && window.claude.use)) return;
+  cloudState = 'loading';
+  try {
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+    const uid = db && user ? await user.id() : null;
+    if (!uid) { cloudState = 'none'; if (screen === 'title') render(); return; }
+    cloudDoc = db.collection('data/users/' + uid).doc('save');
+    const snap = await Promise.race([cloudDoc.get(), new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 10000))]);
+    const d = snap && snap.data && snap.data();
+    if (d && d.json) cloudSave = JSON.parse(d.json);
+    cloudState = 'ready';
+  } catch (e) { cloudState = 'none'; }
+  if (screen === 'title') render();
+}
+function pushCloud(json) {
+  if (!cloudDoc) return;
+  if (cloudBusy) { cloudNext = json; return; }   // 同じ場所への書き込みは一度に一つ
+  cloudBusy = true;
+  cloudDoc.set({ json, savedAt: Date.now() }).catch(() => {}).finally(() => {
+    cloudBusy = false; if (cloudNext) { const n = cloudNext; cloudNext = null; pushCloud(n); }
+  });
+}
+function save() {
+  S.savedAt = Date.now();
+  const json = JSON.stringify(S);
+  let ok = false;
+  try { localStorage.setItem(SAVE_KEY, json); ok = true; } catch (e) {}
+  if (cloudDoc) { cloudSave = JSON.parse(json); pushCloud(json); ok = true; }
+  return ok;
+}
+function loadLocal() { try { const t = localStorage.getItem(SAVE_KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+function loadSaved() {
+  const a = loadLocal(), b = cloudSave;
+  if (a && b) return (b.savedAt || 0) > (a.savedAt || 0) ? b : a;
+  return a || b;
+}
 const encode = o => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 const decode = t => JSON.parse(decodeURIComponent(escape(atob(t.trim()))));
 
@@ -709,6 +747,7 @@ function doAdvance() {
   S.slot++;
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼' && !S.tutorial) rollPackages();
+  save();   // 時間が進むたびに自動セーブ
   render();
   if (S.tutorial) tutorialProgress(false);
 }
@@ -914,14 +953,15 @@ function render() {
 }
 
 function titleHTML() {
-  const has = !!loadSaved();
+  const sv = loadSaved(), has = !!sv;
+  const where = sv ? `${sv.day}日目（${sv === cloudSave ? 'アカウントに保存' : 'このブラウザに保存'}）` : cloudState === 'loading' ? 'セーブを確認中…' : 'セーブはまだありません';
   return `<div class="title">
     <div class="kicker">${esc(C.version)}</div>
     <h1>${esc(C.apartmentName)}</h1>
     <p>祖父が遺した、築五十年の木造アパート。<br>大学二年の春、僕はその管理人になった。</p>
     <div class="stack">
       <button class="btn primary" data-act="newgame">はじめから<small>101号室から始まる</small></button>
-      <button class="btn" data-act="continue" ${has ? '' : 'disabled'}>つづきから<small>${has ? 'このブラウザのセーブ' : 'セーブはまだありません'}</small></button>
+      <button class="btn" data-act="continue" ${has ? '' : 'disabled'}>つづきから<small>${esc(where)}</small></button>
       <button class="btn" data-act="importOpen">セーブコードで再開<small>書き出したコードを貼り付け</small></button>
     </div></div>`;
 }
@@ -1127,7 +1167,7 @@ function nightHTML(rep) {
 }
 function menuHTML() {
   return `<h3>メニュー</h3><div class="acts" style="margin-top:0">
-    <button class="btn" data-act="saveNow">セーブ<small>このブラウザに保存</small></button>
+    <button class="btn" data-act="saveNow">セーブ<small>${cloudDoc ? 'アカウントに保存（自動セーブもあり）' : 'このブラウザに保存'}</small></button>
     <button class="btn" data-act="exportOpen">セーブコード<small>書き出して別の端末へ</small></button>
     <button class="btn" data-act="importOpen">コードを読み込む<small>貼り付けて再開</small></button>
     <button class="btn" data-act="devOpen">開発メニュー<small>数値をいじって確認</small></button>
@@ -1172,7 +1212,7 @@ const ACT = {
   continue() { const d = loadSaved(); if (!d) return; S = d; normalize(); screen = 'game'; render(); narr('続きから再開した。'); },
   menu() { openModal('menu', menuHTML()); },
   close() { closeModal(); },
-  saveNow() { closeModal(); narr(save() ? 'セーブしました。' : 'このブラウザでは保存できませんでした。セーブコードを使ってください。'); },
+  saveNow() { closeModal(); narr(save() ? (cloudDoc ? 'セーブしました。（アカウントに保存）' : 'セーブしました。') : 'このブラウザでは保存できませんでした。セーブコードを使ってください。'); },
   exportOpen() {
     openModal('export', `<h3>セーブコード</h3><div class="sub">コピーして保管してください。</div>
       <textarea id="exportCode" readonly>${encode(S)}</textarea>
@@ -1376,6 +1416,7 @@ window.claude?.hot?.snapshot?.(() => ({ S, screen }));
 function start(data) {
   if (data && data.S) { S = data.S; screen = data.screen || 'game'; normalize(); }
   render(); drawMsg();
+  initCloud();
 }
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 })();
