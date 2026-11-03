@@ -115,6 +115,13 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .stats-card .kv{display:flex;justify-content:space-between;gap:6px}
 .stats-card .kv span:first-child{color:var(--muted);white-space:nowrap}
 .stats-card .big{font-size:18px;font-weight:700}
+.roomstage{position:relative;height:max(380px,62vh);margin-inline:-4px}
+.roomstage .fig{position:absolute;left:0;right:30%;top:0;bottom:0}
+.roomstage .fig::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);width:58%;height:20px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.55),rgba(0,0,0,0));z-index:-1}
+.roomstage .fig img,.roomstage .fig svg{position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;max-width:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
+.roomstage .stats-card{position:absolute;right:0;top:8%;width:44%;max-width:210px}
+.roomacts{margin-top:10px}
+.roominfo{margin-top:12px;background:rgba(23,24,31,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .roster{display:grid;margin-top:8px}
 .rrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .rname{display:grid;min-width:0}.rname b{font-weight:500}.rname small{font-size:11px}
@@ -220,6 +227,25 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="scenes/rin.js"></script>
 <script src="scenes/karen.js"></script>
 <script src="scenes/himeka.js"></script>
+<script src="scenes/daily/hinata.js"></script>
+<script src="scenes/daily/saya.js"></script>
+<script src="scenes/daily/reina.js"></script>
+<script src="scenes/daily/yukino.js"></script>
+<script src="scenes/daily/sayuri.js"></script>
+<script src="scenes/daily/akane.js"></script>
+<script src="scenes/daily/kotori.js"></script>
+<script src="scenes/daily/rio.js"></script>
+<script src="scenes/daily/rei.js"></script>
+<script src="scenes/daily/shiori.js"></script>
+<script src="scenes/daily/aoi.js"></script>
+<script src="scenes/daily/mariko.js"></script>
+<script src="scenes/daily/sumire.js"></script>
+<script src="scenes/daily/mio.js"></script>
+<script src="scenes/daily/nagisa.js"></script>
+<script src="scenes/daily/chihaya.js"></script>
+<script src="scenes/daily/rin.js"></script>
+<script src="scenes/daily/karen.js"></script>
+<script src="scenes/daily/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -241,6 +267,11 @@ const active = h => {
 const HS = () => D.heroines.filter(active);
 const rentOf = h => h.rent || (bldOf(h) === 'mansion' ? MAN.rentPerMonth : C.rentPerMonth) || C.rentPerMonth;
 const FOOD = Object.fromEntries(D.foods.map(f => [f.id, f]));
+// 作り置きは「prep_<料理id>」という差し入れとして持ち歩ける
+const RECIPES = D.recipes || [];
+RECIPES.forEach(r => { FOOD['prep_' + r.id] = { id: 'prep_' + r.id, name: '作り置きの' + r.name, price: 0, kcal: r.kcal, full: r.full, tags: r.tags, prep: true }; });
+const knownRecipes = () => RECIPES.filter(r => (S.cook || 0) >= r.minSkill);
+const cookMax = () => C.cookMax || 500;
 const $ = s => document.querySelector(s);
 
 let S = null, screen = 'title';
@@ -585,16 +616,17 @@ function stretch(h) {
 
 /* ---------- 序盤のイベント ---------- */
 // 朝の掃除中の挨拶
-function morningGreet() {
+function morningGreet(kind = 'morning') {
   sceneBg('entrance');
+  const eve = kind === 'evening';
   let n = 0;
   // 住人が多いので、1回の掃除で会うのは最大 morningGreetMax 人まで（順番はランダム）
   HS().slice().sort(() => Math.random() - 0.5).forEach(h => {
     if (n >= (C.morningGreetMax || 2) || Math.random() >= C.morningGreetChance) return;
     n++;
-    narr(isWeekend() ? `${h.name}がゴミ出しに出てきた。` : `${h.name}が出かけるところだった。`);
+    narr(eve ? (isWeekend() ? `${h.name}が買い物から帰ってきた。` : `${h.name}が帰ってきたところだった。`) : isWeekend() ? `${h.name}がゴミ出しに出てきた。` : `${h.name}が出かけるところだった。`);
     addAff(h, C.morningGreetAffection);
-    if (!tryScene(h, 'morning')) speak(h, 'greetMorning');
+    if (!tryScene(h, kind)) speak(h, eve ? 'greetEvening' : 'greetMorning');
   });
   if (!n) narr('誰とも会わなかった。');
 }
@@ -1006,7 +1038,7 @@ function mapHTML() {
       <div class="stat"><span>手持ちの差し入れ</span><span class="muted" style="grid-column:2/4">${invCount() ? Object.entries(S.inv).map(([k, n]) => `${esc(FOOD[k].name)}×${n}`).join('、') : 'なし'}</span></div>
       <button class="btn wide" data-act="rosterOpen" style="margin-top:2px">住人一覧<small>会った住人の親密度を見る</small></button>
       <div class="stat"><span>攻略</span><span class="muted" style="grid-column:2/4">${HS().filter(h => S.h[h.id].captured).length}／${HS().length}人</span></div>
-      <div class="stat"><span>料理の腕</span><span class="muted" style="grid-column:2/4">${S.cook}</span></div>
+      <div class="stat"><span>料理の腕</span><span class="muted" style="grid-column:2/4">${S.cook}／${cookMax()}（レパートリー ${knownRecipes().length}品）</span></div>
     </div>`;
 }
 
@@ -1015,9 +1047,10 @@ function selfHTML() {
   const acts = [
     { act: 'uni', label: '大学へ行く', note: '平日の朝・昼', ok: !isWeekend() && (s === '朝' || s === '昼') },
     { act: 'job', label: 'バイトに行く', note: `昼・夕／${yen(C.partTimePay)}`, ok: s === '昼' || s === '夕' },
-    { act: 'manage', label: s === '朝' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: true },
+    { act: 'manage', label: s === '朝' || s === '夕' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `出かける住人と会えるかも／状態 +${C.manageGain}` : s === '夕' ? `帰ってくる住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: true },
     { act: 'shop', label: '買い出し', note: '差し入れを買う（夜以外）', ok: s !== '夜' },
-    { act: 'cook', label: '料理の練習', note: `夕・夜／${yen(C.cookPracticeCost)}`, ok: (s === '夕' || s === '夜') && S.cook < 10 && S.money >= C.cookPracticeCost },
+    { act: 'cook', label: '料理の練習', note: `夕・夜／${yen(C.cookPracticeCost)}／腕 ${S.cook}`, ok: (s === '夕' || s === '夜') && S.cook < cookMax() && S.money >= C.cookPracticeCost },
+    { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `夕・夜／${C.prepPortions}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜') && S.cook >= C.prepFrom },
     { act: 'rest', label: s === '夜' ? '寝る' : 'ひと休み', note: s === '夜' ? '1日を終える' : '次の時間帯へ', ok: true, primary: s === '夜' }
   ];
   const bb = S.bankbook === 'ready' ? `<button class="btn primary wide" data-act="bankbook">祖父の押し入れを調べる<small>時間は進まない</small></button>`
@@ -1101,15 +1134,22 @@ function roomHTML(h) {
   const known = Object.entries(st.known);
   const eo = D.meals.eatOut, hc = D.meals.homeCook;
   const eoOk = !st.ate && st.aff >= eo.minAffection && eo.slots.includes(s) && S.money >= eo.price;
-  const hcOk = !st.ate && st.aff >= hc.minAffection && hc.slots.includes(s) && S.money >= hc.price && S.cook >= C.homeCookMinSkill;
+  const hcOk = !st.ate && st.aff >= hc.minAffection && hc.slots.includes(s) && knownRecipes().some(r => S.money >= r.cost);
   const eoNote = st.aff < eo.minAffection ? `親密度${eo.minAffection}以上` : st.ate ? '今日はもう食べた' : `${eo.slots.join('・')}／${yen(eo.price)}`;
-  const hcNote = st.aff < hc.minAffection ? `親密度${hc.minAffection}以上` : S.cook < C.homeCookMinSkill ? `料理の腕${C.homeCookMinSkill}以上` : st.ate ? '今日はもう食べた' : `${hc.slots.join('・')}／${yen(hc.price)}`;
-  return `<div class="portrait">${portrait(h, st)}
-    <div class="info">
+  const hcNote = st.aff < hc.minAffection ? `親密度${hc.minAffection}以上` : st.ate ? '今日はもう食べた' : `${hc.slots.join('・')}／${knownRecipes().length}品から選ぶ`;
+  // 立ち絵を大きく（足は床に）、右に観察眼のステータス。行動ボタンはそのすぐ下、詳しい情報はさらに下
+  return `<div class="roomstage"><div class="fig">${stageFig(h, st)}</div>${statsCard(h, st)}</div>
+    <div class="acts roomacts">
+      <button class="btn" data-act="talk" ${st.talked ? 'disabled' : ''}>話す<small>${st.talked ? '今日はもう話した' : '親密度が上がる'}</small></button>
+      <button class="btn" data-act="giftOpen" ${invCount() ? '' : 'disabled'}>差し入れ<small>${invCount() ? `手持ち ${invCount()}個` : '手持ちなし'}</small></button>
+      <button class="btn" data-act="meal" data-kind="eatOut" ${eoOk ? '' : 'disabled'}>${eo.label}<small>${eoNote}</small></button>
+      <button class="btn" data-act="cookMenu" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
+      <button class="btn wide" data-act="leave">部屋を出る<small>時間が進む（${s} → ${C.slots[S.slot + 1] || '翌朝'}）</small></button>
+    </div>
+    <div class="info roominfo">
       <div><h2>${esc(h.name)}</h2><div class="sub">${bldOf(h) === 'mansion' ? esc(MAN.name || '') : ''}${h.room}号室・${h.age}歳・${esc(h.job)}${h.nameIsTemp ? '（仮名）' : ''}</div></div>
       <div class="row"><span>親密度</span><span class="num">${Math.round(st.aff)}／${C.captureAffection}　${st.captured ? '<span class="chip cap">♥ 攻略済み</span>' : `<span class="chip">${D.affectionTiers[t].name}</span>`}</span></div>
       <div class="bar"><i style="width:${clamp(st.aff / C.captureAffection * 100, 0, 100)}%"></i></div>
-      ${bodyRows(h, st)}
       <div class="row"><span>体型</span><span>段階${st.stage}/${D.stages.length}　${stageInfo(st.stage).name}${st.weight >= maxW(h) ? '　<span class="chip">上限</span>' : ''}</span></div>
       <div class="desc">${esc(stageInfo(st.stage).desc || '')}${progressText(h, st) ? '。' + esc(progressText(h, st)) : ''}</div>
       ${st.clothes ? `<div class="desc">服：上 ${CS[st.clothes.top].name}／下 ${CS[st.clothes.bottom].name}。${esc(tightText(h, st))}</div>` : ''}
@@ -1120,15 +1160,8 @@ function roomHTML(h) {
         ${st.wary >= 30 ? `<span class="chip warn">警戒 ${Math.round(st.wary)}</span>` : ''}
         ${known.map(([tag, v]) => `<span class="chip ${v === 'like' ? 'like' : 'warn'}">${(st.acquired || {})[tag] ? '好きになった' : v === 'like' ? '好き' : '苦手'}：${C.tagNames[tag] || tag}</span>`).join('')}
       </div>
-    </div></div>
-    ${changesHTML(h, st)}
-    <div class="acts">
-      <button class="btn" data-act="talk" ${st.talked ? 'disabled' : ''}>話す<small>${st.talked ? '今日はもう話した' : '親密度が上がる'}</small></button>
-      <button class="btn" data-act="giftOpen" ${invCount() ? '' : 'disabled'}>差し入れ<small>${invCount() ? `手持ち ${invCount()}個` : '手持ちなし'}</small></button>
-      <button class="btn" data-act="meal" data-kind="eatOut" ${eoOk ? '' : 'disabled'}>${eo.label}<small>${eoNote}</small></button>
-      <button class="btn" data-act="meal" data-kind="homeCook" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
-      <button class="btn wide" data-act="leave">部屋を出る<small>時間が進む（${s} → ${C.slots[S.slot + 1] || '翌朝'}）</small></button>
     </div>
+    ${changesHTML(h, st)}
     <div class="legend">在室しやすい時間：${schedText(h)}</div>`;
 }
 
@@ -1201,7 +1234,7 @@ function menuHTML() {
 function devHTML() {
   return `<h3>開発メニュー</h3><div class="dev">
     <div class="rowb"><button class="mini" data-act="dev" data-op="money">所持金 +10,000</button>
-      <button class="mini" data-act="dev" data-op="cook">料理の腕 +1</button>
+      <button class="mini" data-act="dev" data-op="cook">料理の腕 +50</button>
       <button class="mini" data-act="dev" data-op="night">夜まで飛ばす</button>
       <button class="mini" data-act="dev" data-op="monthEnd">月末へ</button>
       <button class="mini" data-act="dev" data-op="bankbook" ${S.bankbook ? 'disabled' : ''}>通帳イベントを起こす</button>
@@ -1264,7 +1297,7 @@ const ACT = {
   devOpen() { openModal('dev', devHTML()); },
   dev(d) {
     if (d.op === 'money') S.money += 10000;
-    if (d.op === 'cook') S.cook = Math.min(10, S.cook + 1);
+    if (d.op === 'cook') S.cook = Math.min(cookMax(), S.cook + 50);
     if (d.op === 'aff') addAff(H[d.id], 10);
     if (d.op === 'kg' || d.op === 'kg10') {
       const h = H[d.id], st = S.h[d.id];
@@ -1397,10 +1430,23 @@ const ACT = {
     if (!st.captured && st.gifts > C.giftAllowance[tierOf(st.aff)]) { addWary(h, C.waryTooMany); narr('（少し不審がられたようだ）'); }
     stretch(h); render();
   },
+  // 手料理：作れる料理から選ぶ
+  cookMenu() {
+    const h = room(), st = S.h[h.id];
+    const isLike = r => r.tags.some(t => h.likes.includes(t) || (st.acquired || {})[t]);
+    openModal('cook', `<h3>${esc(h.name)}に何を作る？</h3><div class="sub">料理の腕 ${S.cook}／${cookMax()}・満腹 ${st.full}／${st.cap}</div>
+      ${knownRecipes().slice().reverse().map(r => `<div class="item"><div>${esc(r.name)} ${st.known && r.tags.some(t => st.known[t] === 'like') && isLike(r) ? '<span class="chip like">好き</span>' : ''}<small>${r.kcal}kcal・満腹+${r.full}</small></div>
+        <span class="num">${yen(r.cost)}</span><button class="mini" data-act="meal" data-kind="homeCook" data-recipe="${r.id}" ${S.money >= r.cost ? '' : 'disabled'}>作る</button></div>`).join('')}
+      <button class="btn close" data-act="close">やめる</button>`);
+  },
   meal(d) {
-    const h = room(), st = S.h[h.id], m = D.meals[d.kind];
+    if (modalKind === 'cook') closeModal();
+    const h = room(), st = S.h[h.id], base = D.meals[d.kind];
+    const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
+    const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : base;
     if (st.full + m.full > st.cap) { speak(h, 'full'); render(); return; }
-    const kcal = Math.round(m.kcal * (d.kind === 'homeCook' ? 1 + C.cookBonus * S.cook : 1));
+    const kcal = m.kcal;
+    if (rcp) narr(`（${rcp.name}を作った）`);
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;
     if (d.kind === 'eatOut') sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
     st.habit = clamp(st.habit + m.habit, 0, 1);
@@ -1416,7 +1462,8 @@ const ACT = {
   job() { S.money += C.partTimePay; narr(`バイトをした。${yen(C.partTimePay)} を受け取った。`); advanceSlot(); },
   manage() {
     S.building = clamp(S.building + C.manageGain, 0, 100);
-    if (slotName() === '朝') { narr('敷地と玄関まわりを掃除した。'); morningGreet(); advanceSlot(); return; }
+    if (slotName() === '朝') { narr('敷地と玄関まわりを掃除した。'); morningGreet('morning'); advanceSlot(); return; }
+    if (slotName() === '夕') { narr('夕暮れの敷地を掃き、玄関の明かりをつけた。'); morningGreet('evening'); advanceSlot(); return; }
     narr(pick(['廊下と階段を掃除した。', '雨どいの詰まりを直した。', 'きしむ床板を補修した。'])); advanceSlot();
   },
   shop() { shopBought = false; openModal('shop', shopHTML()); },
@@ -1425,7 +1472,29 @@ const ACT = {
     S.money -= f.price; S.inv[f.id] = (S.inv[f.id] || 0) + 1; shopBought = true;
     openModal('shop', shopHTML()); render();
   },
-  cook() { S.money -= C.cookPracticeCost; S.cook++; narr(`料理の練習をした。料理の腕が ${S.cook} になった。`); advanceSlot(); },
+  cook() {
+    const [lo, hi] = C.cookPracticeGain || [5, 9], before = S.cook;
+    S.money -= C.cookPracticeCost;
+    S.cook = Math.min(cookMax(), S.cook + lo + Math.floor(Math.random() * (hi - lo + 1)));
+    narr(`料理の練習をした。料理の腕が ${before} → ${S.cook} になった。`);
+    RECIPES.filter(r => r.minSkill > before && r.minSkill <= S.cook).forEach(r => narr(`新しいレパートリー：「${r.name}」（${r.kcal}kcal）が作れるようになった！`));
+    if (before < C.prepFrom && S.cook >= C.prepFrom) narr(`料理の腕が${C.prepFrom}を超えた。「作り置き」ができるようになった。作った料理は差し入れとして住人に渡せる。`);
+    advanceSlot();
+  },
+  prepOpen() {
+    openModal('prep', `<h3>作り置き</h3><div class="sub">${C.prepPortions}食分を作って、差し入れとして持っておく。所持金 ${yen(S.money)}</div>
+      ${knownRecipes().slice().reverse().map(r => `<div class="item"><div>${esc(r.name)}<small>${r.kcal}kcal・満腹+${r.full}・所持 ${S.inv['prep_' + r.id] || 0}</small></div>
+        <span class="num">${yen(r.cost * C.prepPortions)}</span><button class="mini" data-act="prep" data-recipe="${r.id}" ${S.money >= r.cost * C.prepPortions ? '' : 'disabled'}>作る</button></div>`).join('')}
+      <button class="btn close" data-act="close">やめる</button>`);
+  },
+  prep(d) {
+    const r = RECIPES.find(x => x.id === d.recipe); if (!r) return;
+    closeModal();
+    S.money -= r.cost * C.prepPortions;
+    S.inv['prep_' + r.id] = (S.inv['prep_' + r.id] || 0) + C.prepPortions;
+    narr(`「${r.name}」を${C.prepPortions}食分作り置きした。差し入れとして住人に渡せる。`);
+    advanceSlot();
+  },
   rest() { if (slotName() === '夜') narr('布団に入った。'); advanceSlot(); }
 };
 

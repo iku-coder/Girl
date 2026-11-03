@@ -10,7 +10,7 @@ window.GAME_DATA = {
     apartmentName: 'ひだまり荘',
     bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v1.2',
+    version: '試作版 v1.4',
     slots: ['朝', '昼', '夕', '夜'],
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
@@ -22,8 +22,11 @@ window.GAME_DATA = {
     rentPerMonth: 40000,        // 住人1人あたり。月末の家賃回収で受け取る
     partTimePay: 4000,
     cookPracticeCost: 500,
-    homeCookMinSkill: 2,
-    cookBonus: 0.15,            // 料理の腕1につき手料理のカロリー+15%
+    // 料理の腕（0〜500）。練習で上がり、上がるほど作れる料理（recipes）が増える。最初は低カロリーの料理だけ
+    cookMax: 500,
+    cookPracticeGain: [5, 9],   // 1回の練習で上がる量（この範囲でランダム）
+    prepFrom: 100,              // この腕から「作り置き」ができる。作り置きは差し入れとして渡せる
+    prepPortions: 3,            // 1回の作り置きでできる数
 
     // 体重計算
     maxWeight: 120,             // 体重の上限（kg）。ヒロインごとに maxWeight を書けば上書き（茜は140の予定）
@@ -219,8 +222,29 @@ window.GAME_DATA = {
   /* ---- 一緒に食べる系の行動 ---- */
   meals: {
     eatOut:   { label: '外食に誘う',       price: 2400, kcal: 1300, full: 45, affection: 6, habit: 0.03, minAffection: 35, slots: ['昼', '夕', '夜'] },
-    homeCook: { label: '手料理をふるまう', price: 900,  kcal: 1600, full: 50, affection: 7, habit: 0.04, minAffection: 70, slots: ['夕', '夜'] }
+    homeCook: { label: '手料理をふるまう', affection: 7, habit: 0.04, minAffection: 70, slots: ['夕', '夜'] }   // カロリー・満腹・材料費は選んだ料理（recipes）で決まる
   },
+
+  /* ---- 手料理のレパートリー。料理の腕が minSkill に届くと作れる。cost は1食分の材料費 ----
+     手料理をふるまうとき・作り置きするときに、作れる料理から選ぶ。tags は好き嫌いの判定に使う */
+  recipes: [
+    { id: 'moyashi',   name: 'もやし炒め',             minSkill: 0,   kcal: 250,  full: 14, cost: 150,  tags: ['meal'] },
+    { id: 'soup',      name: '具だくさん野菜スープ',   minSkill: 0,   kcal: 200,  full: 12, cost: 200,  tags: ['meal'] },
+    { id: 'tamagoyaki',name: '甘い卵焼き',             minSkill: 20,  kcal: 320,  full: 12, cost: 150,  tags: ['meal'] },
+    { id: 'onigiri',   name: 'おにぎり三種',           minSkill: 35,  kcal: 520,  full: 20, cost: 200,  tags: ['meal'] },
+    { id: 'nikujaga',  name: '肉じゃが',               minSkill: 55,  kcal: 600,  full: 24, cost: 400,  tags: ['meal'] },
+    { id: 'omurice',   name: 'オムライス',             minSkill: 80,  kcal: 800,  full: 28, cost: 350,  tags: ['meal'] },
+    { id: 'karaage',   name: '山盛りからあげ',         minSkill: 105, kcal: 1000, full: 30, cost: 500,  tags: ['fried', 'meal'] },
+    { id: 'curry',     name: '大盛りカツカレー',       minSkill: 135, kcal: 1300, full: 38, cost: 600,  tags: ['fried', 'meal'] },
+    { id: 'pancake',   name: 'ホットケーキタワー',     minSkill: 165, kcal: 1300, full: 30, cost: 400,  tags: ['sweet'] },
+    { id: 'hamburg',   name: 'チーズハンバーグ定食',   minSkill: 200, kcal: 1400, full: 40, cost: 700,  tags: ['meal'] },
+    { id: 'gratin',    name: 'マカロニグラタン',       minSkill: 240, kcal: 1500, full: 40, cost: 600,  tags: ['meal'] },
+    { id: 'katsudon',  name: '特盛りかつ丼',           minSkill: 280, kcal: 1800, full: 50, cost: 800,  tags: ['fried', 'meal'] },
+    { id: 'donutmount',name: '手作りドーナツの山',     minSkill: 320, kcal: 2200, full: 40, cost: 700,  tags: ['sweet', 'snack'] },
+    { id: 'chuka',     name: '中華フルコース',         minSkill: 370, kcal: 2600, full: 60, cost: 1500, tags: ['fried', 'meal'] },
+    { id: 'wholecake', name: '手作りのホールケーキ',   minSkill: 420, kcal: 2800, full: 45, cost: 1200, tags: ['sweet'] },
+    { id: 'feast',     name: 'ごちそう満漢全席',       minSkill: 480, kcal: 3800, full: 75, cost: 2500, tags: ['meal', 'fried', 'sweet'] }
+  ],
 
   /* ---- タイプ共通の「太ったときの反応」（体型タイプ仕様 v0.2）----
      ヒロイン固有の stageUp がない段階で使う。early=段階2〜5, mid=6〜10, late=11〜15
@@ -294,6 +318,7 @@ window.GAME_DATA = {
   /* ---- 全キャラ共通の予備セリフ。ヒロインの lines にそのキーがないときに使う（口調に癖のない言い方） ---- */
   commonLines: {
     greetMorning: [['…おはようございます'], ['おはよう。朝から精が出るね'], ['おはよう。顔が見られてうれしい'], ['おはよう。…今日も来てくれる？']],
+    greetEvening: [['…ただいま戻りました'], ['ただいま。掃除、おつかれさま'], ['ただいま。…顔を見たら、疲れが取れた'], ['ただいま。…待っててくれたの？']],
     greet: [['…何かご用ですか？'], ['いらっしゃい'], ['来てくれたんだ。どうぞ'], ['おかえり']],
     talk: [['……'], ['最近、いろいろあってね'], ['こうして話してると、落ち着く'], ['ずっとここにいたいな']],
     rent: [['…はい、家賃です'], ['はい、今月の家賃。いつもありがとう'], ['はい、家賃。少し話していく？'], ['はい。…家賃の日、好きなんだ']],
