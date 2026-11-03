@@ -123,7 +123,15 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .roomacts{margin-top:10px}
 .roominfo{margin-top:12px;background:rgba(23,24,31,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .roster{display:grid;margin-top:8px}
-.rrow.link{cursor:pointer}.rrow.link:active{background:var(--panel2)}
+.rrow.link{cursor:pointer}
+.item.pick{width:100%;text-align:left;background:none;color:inherit;font:inherit;border:0;border-bottom:1px solid var(--line);cursor:pointer}
+.item.pick.on{background:var(--panel2)}.item.pick.on .num{color:var(--lamp);font-weight:700}
+.gal{margin-top:10px}.gthumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:4px}
+.gth{aspect-ratio:2/3;position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:6px;overflow:hidden;padding:0;color:inherit}
+.gth img{width:100%;height:100%;object-fit:cover;object-position:top}
+.gth span{position:absolute;left:3px;bottom:1px;font-size:10px;text-shadow:0 1px 2px #000}.gth.locked{opacity:.3;display:block}
+.galbig{text-align:center}.galbig img{max-width:100%;max-height:62vh;object-fit:contain}
+.ending p{margin:.5em 0;line-height:1.8}.rrow.link:active{background:var(--panel2)}
 .diary-chart{width:100%;height:120px;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 .drow{padding:7px 0;border-bottom:1px solid var(--line);display:grid;gap:2px}
 .drow .l1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.drow .l1 b{font-size:15px}
@@ -215,7 +223,8 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="life.js"></script>
 <script src="scenes.js"></script>
 <script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });
-window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = o; };</script>
+window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = o; };
+window.EXTRA = {}; window.addExtra = (id, o) => { const e = window.EXTRA[id] = window.EXTRA[id] || { lines: {} }; if (o.birthday) e.birthday = o.birthday; Object.assign(e.lines, o.lines || {}); };</script>
 <script src="scenes/_intro.js"></script>
 <script src="scenes/reina.js"></script>
 <script src="scenes/sayuri.js"></script>
@@ -354,6 +363,36 @@ window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = 
 <script src="scenes/out/campus/mio.js"></script>
 <script src="scenes/out/campus/nagisa.js"></script>
 <script src="scenes/out/campus/himeka.js"></script>
+<script src="scenes/extra/hinata.js"></script>
+<script src="scenes/extra/saya.js"></script>
+<script src="scenes/extra/reina.js"></script>
+<script src="scenes/extra/sayuri.js"></script>
+<script src="scenes/extra/akane.js"></script>
+<script src="scenes/extra/kotori.js"></script>
+<script src="scenes/extra/yukino.js"></script>
+<script src="scenes/extra/rio.js"></script>
+<script src="scenes/extra/rei.js"></script>
+<script src="scenes/extra/shiori.js"></script>
+<script src="scenes/extra/aoi.js"></script>
+<script src="scenes/extra/mariko.js"></script>
+<script src="scenes/extra/sumire.js"></script>
+<script src="scenes/extra/mio.js"></script>
+<script src="scenes/extra/nagisa.js"></script>
+<script src="scenes/extra/chihaya.js"></script>
+<script src="scenes/extra/rin.js"></script>
+<script src="scenes/extra/karen.js"></script>
+<script src="scenes/extra/himeka.js"></script>
+<script src="scenes/special/rio.js"></script>
+<script src="scenes/special/shiori.js"></script>
+<script src="scenes/special/aoi.js"></script>
+<script src="scenes/special/mariko.js"></script>
+<script src="scenes/special/sumire.js"></script>
+<script src="scenes/special/chihaya.js"></script>
+<script src="scenes/special/rin.js"></script>
+<script src="scenes/special/karen.js"></script>
+<script src="scenes/special/himeka.js"></script>
+<script src="scenes/special/mio.js"></script>
+<script src="scenes/special/nagisa.js"></script>
 <script>
 (() => {
 'use strict';
@@ -404,7 +443,15 @@ const bmi = (h, w) => w / ((h.height / 100) ** 2);
 const stageOf = (h, w) => { const b = bmi(h, w); return (D.stages.find(s => b < s.maxBmi) || D.stages[D.stages.length - 1]).id; };
 const stageInfo = id => D.stages.find(s => s.id === id);
 const tierOf = aff => { let t = 0; D.affectionTiers.forEach((x, i) => { if (aff >= x.min) t = i; }); return t; };
-const present = h => (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes(slotName());
+// 凛の交代制（4日周期）：0 日勤（朝・夜に在室）1 夜勤（昼）2 明け・非番（朝・昼・夕）3 休み（昼・夕・夜）
+const RIN_SHIFT = [['朝', '夜'], ['昼'], ['朝', '昼', '夕'], ['昼', '夕', '夜']];
+const rinShift = (day = S.day) => ((day - 1) % 4 + 4) % 4;
+const present = h => {
+  const st = S && S.h && S.h[h.id];
+  if (st && st.away && S.day <= st.away.until) return false;   // 留守（栞の夫の一時帰国など）
+  if (h.id === 'rin') return RIN_SHIFT[rinShift()].includes(slotName());
+  return (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes(slotName());
+};
 const schedText = h => `平日 ${h.schedule.weekday.join('・')}／休日 ${h.schedule.weekend.join('・')}`;
 const maxW = h => (h && h.maxWeight) || C.maxWeight || 120;
 const invCount = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
@@ -482,6 +529,7 @@ function checkMilestones(h, st, from, to) {
         st.clothes = { top: nt, bottom: nb };
         (st.clothesLog = st.clothesLog || []).push({ day: S.day, top: nt, bottom: nb });
         queueEvent(st, 'clothesUp', { size: CS[st.clothes[up]].name, prev });
+        st.clothesNew = true;   // 「服を買いに行く」に誘えるようになる
       }
     }
   }
@@ -566,6 +614,7 @@ function say(name, text, color) {
   // 攻略後に呼び方が変わるヒロイン（例：雪乃「〇〇さん」→「〇〇くん」）。heroines.js の callAfterCapture: { from, to }
   const hh = hid && H[hid];
   if (hh && hh.callAfterCapture && S.h[hid] && S.h[hid].captured) text = String(text).split(hh.callAfterCapture.from).join(hh.callAfterCapture.to);
+  text = String(text).replace(/\{kg\}/g, S && S.ctxKg != null ? S.ctxKg : '');
   incoming.push({ name, text: nameFill(text), color, hid });
   if (!flushPending) { flushPending = true; queueMicrotask(flush); }
 }
@@ -655,7 +704,7 @@ function normalize() {
     else { const f = freshHeroine(h); for (const k in f) if (S.h[h.id][k] === undefined) S.h[h.id][k] = f[k]; }
   });
   if (S.view.type === 'room' && !H[S.view.id]) S.view = { type: 'map' };
-  D.heroines.forEach(h => { const st = S.h[h.id]; st.stage = stageOf(h, st.weight); if (st.seenStage > st.stage) st.seenStage = st.stage;
+  D.heroines.forEach(h => { const st = S.h[h.id]; st.stage = stageOf(h, st.weight); st.topStage = Math.max(st.topStage || 1, st.stage, st.seenStage || 1); if (st.seenStage > st.stage) st.seenStage = st.stage;
     if (st.met == null) st.met = st.visits > 0 || st.aff !== (h.startAffection || 0); });
 }
 /* セーブ：このブラウザ（localStorage）と、claude.ai のアカウントごとの保存場所（db の data/users/<自分のid>/save。本人しか読めない）の両方に保存する。
@@ -761,16 +810,19 @@ function encounter(kind) {
 function morningGreet(kind = 'morning') {
   sceneBg('entrance');
   const eve = kind === 'evening';
-  let n = 0;
+  let n = 0; const seen = [];
   // 住人が多いので、1回の掃除で会うのは最大 morningGreetMax 人まで（順番はランダム）
   HS().slice().sort(() => Math.random() - 0.5).forEach(h => {
     if (n >= (C.morningGreetMax || 2) || Math.random() >= C.morningGreetChance) return;
     n++;
     narr(eve ? (isWeekend() ? `${h.name}が買い物から帰ってきた。` : `${h.name}が帰ってきたところだった。`) : isWeekend() ? `${h.name}がゴミ出しに出てきた。` : `${h.name}が出かけるところだった。`);
-    addAff(h, C.morningGreetAffection);
+    addAff(h, C.morningGreetAffection); seen.push(h);
+    if (S.h[h.id].dietNew) { S.h[h.id].dietNew = false; if (tryScene(h, 'diet')) return; }
     if (!(eatLevel(S.h[h.id]) >= 5 && eatSpecial(h, eve ? 'greetEvening5' : 'greetMorning5')) && !tryScene(h, kind)) speak(h, eve ? 'greetEvening' : 'greetMorning');
   });
   if (!n) narr('誰とも会わなかった。');
+  // 住人同士のうわさ話
+  if (seen.length >= 2 && Math.random() < ((C.relations || {}).gossipChance || 0) && S.h[seen[1].id].stage >= 3) sayOther(seen[0], 'gossip', seen[1]);
 }
 // 留守中の荷物を預かる（昼に判定）
 function rollPackages() {
@@ -793,6 +845,10 @@ function deliver(h) {
 // 月末の家賃回収
 function collectRent(h) {
   const st = S.h[h.id], t = tierOf(st.aff);
+  // 真理子：段階9〜12は家賃が払えない（選択肢で「待つ」か「払ってもらう」。お金はシーンの選択肢で入る）
+  if (h.id === 'mariko' && st.stage >= 9 && st.stage <= 12 && pickScene(h, 'rentLate')) {
+    S.rentDone[h.id] = true; sceneBg('hall'); narr(`${h.name}の部屋へ家賃を受け取りに行った。`); tryScene(h, 'rentLate'); render(); return;
+  }
   const amt = Math.round(rentOf(h) * (S.building >= 50 ? 1 : 0.8));
   S.rentDone[h.id] = true; S.money += amt;
   sceneBg('hall');
@@ -817,10 +873,30 @@ const SC = window.GAME_SCENES || {};
   if (extra.stageUp) h.lines.stageUp = Object.assign({}, h.lines.stageUp || {}, extra.stageUp);
   if (extra.milestone) h.lines.milestone = Object.assign({}, h.lines.milestone || {}, extra.milestone);
 });
+// scenes/extra/<id>.js：誕生日と、食事会・住人同士・ダイエットのセリフ
+Object.entries(window.EXTRA || {}).forEach(([id, o]) => {
+  const h = D.heroines.find(x => x.id === id); if (!h || !o) return;
+  if (o.birthday) h.birthday = o.birthday;
+  if (o.lines) Object.assign(h.lines, o.lines);
+});
 let inScene = false, sceneNotes = [];
 function endScene() { inScene = false; const n = sceneNotes; sceneNotes = []; n.forEach(f => f()); }
 const PLAYER = C.playerLabel || 'あなた';
 const flagsOf = h => (S.flags[h.id] = S.flags[h.id] || []);
+/* ---------- v1.6 共通の小道具 ---------- */
+const shortName = h => h.name.split(/\s+/).pop();
+function sayOther(h, key, other) { say(h.name, String(line(h, key)).split('{other}').join(shortName(other)), h.color); }
+const hasFac = id => !!(S.fac && S.fac[id]);
+const prepN = () => C.prepPortions + (hasFac('fridge') ? 2 : 0);
+const mmdd = (day = S.day) => { const d = dateOf(day); return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const inRange = (md, a, b) => (a <= b ? md >= a && md <= b : md >= a || md <= b);
+const yearOf = (day = S.day) => { const d = dateOf(day); return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); };   // 年度（4月始まり）
+function endDiet(h, st, finished) {
+  st.diet = null; st.lastDiet = S.day; st.dietNew = false;
+  const fl = flagsOf(h), i = fl.indexOf('diet_stop'); if (i >= 0) fl.splice(i, 1);
+  if (finished) { st.rebound = C.diet.rebound.days; st.dietEndPending = true; }
+}
+const dietStopCheck = (h, st) => { if (st.diet && flagsOf(h).includes('diet_stop')) endDiet(h, st, false); };
 function condOk(h, c, ctx = {}) {
   if (!c) return true;
   const st = S.h[h.id], fl = flagsOf(h), t = tierOf(st.aff);
@@ -838,6 +914,7 @@ function condOk(h, c, ctx = {}) {
   if (c.minMoney != null && S.money < c.minMoney) return false;
   if (c.chance != null && Math.random() >= c.chance) return false;
   if (c.minHabit != null && st.habit < c.minHabit) return false;
+  if (c.season && c.season !== ctx.season) return false;
   return true;
 }
 function pickScene(h, type, ctx = {}) {
@@ -940,12 +1017,34 @@ function night() {
   if (weekday) S.uni.total++;
   HS().forEach(h => {
     const st = S.h[h.id];
+    // キャラ専用（夜）
+    if (h.id === 'aoi') st.jeal = Math.max(0, (st.jeal || 0) - 8);
+    if (h.id === 'sumire') {
+      if (st.focus && S.day >= st.focus.until) { st.focus = null; if (st.stash) { st.intake += Math.round(st.stash * 1.1); st.stash = 0; st.stashPending = true; rep.events.push('すみれのデザインが完成したらしい。ため込んでいた差し入れを、一気に平らげたようだ。'); } }
+      else if (!st.focus && st.met && Math.random() < 0.12) st.focus = { until: S.day + 2 + Math.floor(Math.random() * 3) };
+    }
+    if (h.id === 'chihaya' && (C.seasons || []).some(e => e.only && e.only.includes('chihaya') && (inRange(mmdd(), e.from, e.to) || inRange(mmdd(S.day + 3), e.from, e.to) || inRange(mmdd(S.day - 3), e.from, e.to)))) st.intake += 500;
+    if (h.id === 'karen' && dow() === 5 && st.stage <= 8) {
+      const ps = HS().filter(x => x.id !== 'karen' && S.h[x.id].met && S.h[x.id].stage >= 3 && Math.random() < 0.35).slice(0, 3);
+      ps.forEach(x => { const xs = S.h[x.id]; xs.weight = Math.max(x.weight * 0.9, Math.round((xs.weight - 0.3) * 100) / 100); xs.habit = clamp(xs.habit - 0.02, 0, 1); });
+      if (ps.length) rep.events.push(`香蓮の「ひだまりヨガ教室」に、${ps.map(x => shortName(x)).join('・')}が参加した。（体重 −0.3kg・食習慣 −2%）`);
+    }
+    if ((h.id === 'mio' || h.id === 'nagisa') && dateOf(S.day + 1).getDate() === 1) {
+      st.intake += h.id === 'nagisa' ? 1500 : 500; if (h.id === 'nagisa') st.habit = clamp(st.habit + 0.02, 0, 1);
+      if (h.id === 'nagisa') rep.events.push('双海家の実家から、お菓子の段ボールが届いた。ほとんど渚が食べたらしい。');
+    }
+    if (h.id === 'mio' && flagsOf(h).includes('twin_swap_ok') && !SPX().swapPaid && S.h.nagisa) { SPX().swapPaid = true; S.h.nagisa.aff = clamp(S.h.nagisa.aff + 5, 0, 100); }
+    if (h.id === 'shiori' && st.away && S.day >= st.away.until) { st.away = null; st.husbandAfter = true; }
+    // ダイエットとリバウンド
+    dietStopCheck(h, st);
+    if (st.diet && S.day >= st.diet.until) endDiet(h, st, true);
+    if (st.rebound > 0) { const rb = C.diet.rebound; st.intake += rb.kcal; st.habit = clamp(st.habit + rb.habit / rb.days, 0, 1); st.rebound--; }
     // 間食：大食いは時々、底なしは毎日、無尽蔵は朝昼夕夜（満腹ゲージとは別に、自分で食べる分）
     const lvE = eatLevel(st), sn = C.snacks || {};
-    st.snacks = lvE >= 5 ? 4 : lvE === 4 ? 1 : lvE === 3 && Math.random() < (sn.chance3 || 0.3) ? 1 : 0;
+    st.snacks = st.diet ? 0 : lvE >= 5 ? 4 : lvE === 4 ? 1 : lvE === 3 && Math.random() < (sn.chance3 || 0.3) ? 1 : 0;
     st.intake += st.snacks * (sn.kcal || 400);
     const maint = st.weight * C.maintPerKg;
-    const own = maint * (C.baseEatRatio + C.habitEatBonus * st.habit);
+    const own = maint * (C.baseEatRatio + C.habitEatBonus * st.habit) * (st.diet ? C.diet.eatRatio : 1);
     const raw = (own + st.intake - maint) / C.kcalPerKg;
     // 増え方に計算上の上限は設けない（1日に食べられる量＝満腹ゲージが実質の上限）
     // デブ体質：太るほど（段階が上がるほど）太りやすくなる。増えるときだけ掛かる
@@ -963,6 +1062,16 @@ function night() {
       else if (!favorable(st)) addWary(h, C.waryStageUpLowTrust);
     }
     st.stage = ns;
+    st.topStage = Math.max(st.topStage || 1, ns);
+    // 栞：段階9になったら一度だけ、夫が一時帰国（3日間、訪ねられない）
+    if (h.id === 'shiori' && ns >= 9 && !SPX().husband) { SPX().husband = true; st.away = { until: S.day + 3, text: '202号室。…中から男の人の声がする。栞の夫が一時帰国しているらしい。今は訪ねられない。' }; rep.events.push('栞の部屋に、明かりがふたつ。…夫が一時帰国したらしい（3日間）。'); }
+    // 体重計：5kg刻み（10kgの倍数は節目イベントにまかせる）
+    { const sp = C.scaleStep || 5, k = Math.floor(st.weight / sp) * sp; if (k > Math.floor(from / sp) * sp && k % 10 !== 0) st.scalePending = k; }
+    // ダイエット宣言
+    if (C.diet && !st.diet && !st.rebound && st.stage >= C.diet.minStage && S.day - (st.lastDiet == null ? -999 : st.lastDiet) >= C.diet.cooldown
+      && Math.random() < C.diet.chance && (SC[h.id] || []).some(x => x.type === 'diet')) {
+      const [a, b] = C.diet.days; st.diet = { until: S.day + 1 + a + Math.floor(Math.random() * (b - a + 1)) }; st.dietNew = true;
+    }
     if (S.building < 30) st.aff = clamp(st.aff - 1, 0, 100);
     st.habit = clamp(st.habit - C.habitDecayPerDay * mod(h, 'habitDecay'), 0, 1);
     const pk = S.packages[h.id];
@@ -984,12 +1093,17 @@ function night() {
     if (rumor) rep.events.push(`うわさ：${h.name}は、${rumor}。`);
   });
   if (S.building < 30) rep.events.push('建物の傷みがひどく、住人たちが不満そうだ。');
-  S.building = clamp(S.building - C.buildingDecayPerDay, 0, 100);
+  S.building = clamp(S.building - C.buildingDecayPerDay * (hasFac('repair') ? 0.5 : 1), 0, 100);
   if (S.tutorial) {
     tutLeft().forEach(h => { S.money += rentOf(h); rep.events.push(`${h.name}の4月分の家賃は、郵便受けに封筒で入っていた。`); });
     S.tutorial = null; S.tutorialDone = true; rep.events.push('（最初の家賃回収はこれで終わり。ここからは自由に過ごそう）');
   }
   if (isMonthEnd()) S.rentDone = {};
+  // エンディング：全員攻略かつ全員段階15（一度だけ）／毎年3月31日の総決算
+  { const hs = HS(), allCap = hs.length && hs.every(h => S.h[h.id].captured);
+    if (allCap && hs.every(h => S.h[h.id].stage >= 15) && !S.endFull) { S.endFull = true; S.pendingEnding = 'full'; }
+    else if (mmdd(S.day) === (C.endingDate || '03-31')) S.pendingEnding = 'year';
+    if (S.pendingEnding) S.endYear = yearOf(); }
   rep.date = dateText();
   S.day++; S.slot = 0; S.uniToday = false; S.view = { type: 'map' };
   save();
@@ -1158,6 +1272,7 @@ function startInvite(h) {
 }
 function inviteAction(h, act) {
   const st = S.h[h.id];
+  if (hasFac('kotatsu')) addAff(h, 2);
   if (act === 'cook') { drawMsg(); ACT.cookMenu({ id: h.id }); return; }
   const held = incoming; incoming = [];
   if (act === 'night') {
@@ -1181,6 +1296,7 @@ function render() {
   $('#msg').hidden = screen === 'title';
   if (screen === 'title') { $('#hdr').hidden = true; main.innerHTML = titleHTML(); return; }
   $('#hdr').hidden = false;
+  syncRoute();   // 姫華のルート（シーンの選択肢で立ったフラグを反映）
   $('#hdr').innerHTML = `<div class="day num">${dateText()}<small>(${C.weekdays[dow()]})</small></div><div class="dow">${S.day}日目${isMonthEnd() ? ' <span class="chip warn">月末</span>' : ''}</div>
     <div class="pips">${C.slots.map((s, i) => `<span class="pip ${i === S.slot ? 'now' : i < S.slot ? 'past' : ''}">${s}</span>`).join('')}</div>
     <div class="money num">${yen(S.money)}</div><button class="icon" data-act="menu" aria-label="メニュー">≡</button>`;
@@ -1257,14 +1373,19 @@ function selfHTML() {
     { act: 'shop', label: '買い出し', note: '差し入れを買う（夜以外）', ok: s !== '夜' },
     { act: 'cook', label: '料理の練習', note: `夕・夜／${yen(C.cookPracticeCost)}／腕 ${S.cook}`, ok: (s === '夕' || s === '夜') && S.cook < cookMax() && S.money >= C.cookPracticeCost },
     { act: 'inviteOpen', label: '部屋に呼ぶ', note: `夕・夜／攻略した住人を101号室に`, ok: (s === '夕' || s === '夜') && HS().some(h => S.h[h.id].captured) },
-    { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `夕・夜／${C.prepPortions}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜') && S.cook >= C.prepFrom },
+    { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `夕・夜／${prepN()}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜') && S.cook >= C.prepFrom },
+    { act: 'partyOpen', label: '食事会を開く', note: hasFac('nabe') ? `夕・夜／${yen(C.party.price)}／最大${partyMax()}人` : '設備の「大鍋とカセットコンロ」が必要', ok: (s === '夕' || s === '夜') && hasFac('nabe') && S.money >= C.party.price && partyCands().length > 0 },
+    ...(S.h.chihaya && S.h.chihaya.met && active(H.chihaya) ? [{ act: 'offerOpen', label: '神社にお供えする', note: '昼・夕／千早が「おさがり」としていただく', ok: (s === '昼' || s === '夕') && invCount() > 0 && SPX().offerDay !== S.day }] : []),
+    { act: 'facOpen', label: '設備・修繕', note: `冷蔵庫・こたつ・修繕など（${(C.facilities || []).filter(f => hasFac(f.id)).length}/${(C.facilities || []).length}）`, ok: true },
+    ...bdayToday().map(h => ({ act: 'bday', id: h.id, label: `${shortName(h)}の誕生日を祝う`, note: `ケーキを持って部屋へ／${yen(C.birthday.price)}`, ok: S.money >= C.birthday.price, primary: true })),
+    ...seasonsToday().map(e => ({ act: 'seasonOpen', id: e.id, label: e.label, note: `${e.name}・1年に1回`, ok: true, primary: true })),
     { act: 'rest', label: s === '夜' ? '寝る' : 'ひと休み', note: s === '夜' ? '1日を終える' : '次の時間帯へ', ok: true, primary: s === '夜' }
   ];
   const bb = S.bankbook === 'ready' ? `<button class="btn primary wide" data-act="bankbook">祖父の押し入れを調べる<small>時間は進まない</small></button>`
     : S.bankbook === 'found' ? `<button class="btn primary wide" data-act="buildMansion">隣の敷地にマンションを建てる<small>${esc(MAN.name || 'マンション')}・3階建て12室</small></button>` : '';
   return `<h2>101号室</h2><div class="sub">自室。祖父の荷物がまだ少し残っている。</div>
     ${bb ? `<div class="acts">${bb}</div>` : ''}
-    <div class="acts">${acts.map(a => `<button class="btn ${a.primary ? 'primary' : ''}" data-act="${a.act}" ${a.ok ? '' : 'disabled'}>${a.label}<small>${a.note}</small></button>`).join('')}</div>
+    <div class="acts">${acts.map(a => `<button class="btn ${a.primary ? 'primary' : ''}" data-act="${a.act}" ${a.id ? `data-id="${a.id}"` : ''} ${a.ok ? '' : 'disabled'}>${a.label}<small>${a.note}</small></button>`).join('')}</div>
     <button class="back" data-act="tomap">← 廊下に出る</button>`;
 }
 
@@ -1351,6 +1472,9 @@ function roomHTML(h) {
       <button class="btn" data-act="giftOpen" ${invCount() ? '' : 'disabled'}>差し入れ<small>${invCount() ? `手持ち ${invCount()}個` : '手持ちなし'}</small></button>
       <button class="btn" data-act="meal" data-kind="eatOut" ${eoOk ? '' : 'disabled'}>${eo.label}<small>${eoNote}</small></button>
       <button class="btn" data-act="cookMenu" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
+      ${h.id === 'shiori' && st.aff >= 35 ? `<button class="btn" data-act="lesson" ${S.cook >= 2 && st.lessonDay !== S.day ? '' : 'disabled'}>料理を教える<small>${S.cook < 2 ? '料理の腕2から' : st.lessonDay === S.day ? '今日はもう教えた' : '一緒に作って、二人で食べる・時間が進む'}</small></button>` : ''}
+      ${h.id === 'rio' && S.h.hinata && S.h.hinata.aff >= 70 ? `<button class="btn" data-act="giftOpenH" ${invCount() ? '' : 'disabled'}>ひなたと一緒に食べる<small>${invCount() ? 'ひなたの「一緒に食べよ？」は断れない' : '手持ちなし'}</small></button>` : ''}
+      ${st.clothesNew && st.aff >= C.clothesTrip.minAffection ? `<button class="btn wide" data-act="clothesTrip" ${S.money >= C.clothesTrip.price ? '' : 'disabled'}>服を買いに行く<small>サイズが上がった服を一緒に選ぶ／${yen(C.clothesTrip.price)}・時間が進む</small></button>` : ''}
       <button class="btn wide" data-act="leave">部屋を出る<small>時間が進む（${s} → ${C.slots[S.slot + 1] || '翌朝'}）</small></button>
     </div>
     <div class="info roominfo">
@@ -1362,6 +1486,13 @@ function roomHTML(h) {
       ${st.clothes ? `<div class="desc">服：上 ${CS[st.clothes.top].name}／下 ${CS[st.clothes.bottom].name}。${esc(tightText(h, st))}</div>` : ''}
       <div class="row"><span>満腹</span><span class="num">${st.full}／${st.cap}</span></div>
       <div class="bar full"><i style="width:${st.full / st.cap * 100}%"></i></div>
+      ${h.id === 'aoi' ? `<div class="row"><span>嫉妬</span><span class="num">${Math.round(st.jeal || 0)}／100${(st.jeal || 0) >= 50 ? '（やけ食い寸前）' : ''}</span></div>` : ''}
+      ${h.id === 'mariko' && marikoRank(st).shop ? `<div class="row"><span>勤め先</span><span>${esc(marikoRank(st).shop)}（${esc(marikoRank(st).name)}）</span></div>` : ''}
+      ${h.id === 'karen' ? `<div class="row"><span>フォロワー</span><span class="num">${karenFollowers(st)}万人${karenCheat(st) ? '・今日はチートデイ（差し入れ2倍）' : ''}</span></div>` : ''}
+      ${h.id === 'himeka' ? `<div class="row"><span>${himekaFriends(st).label}</span><span class="num">${himekaFriends(st).n}人${st.order ? `・命令：${esc((FOOD[st.order] || {}).name || '')}` : ''}</span></div>` : ''}
+      ${h.id === 'sumire' && st.focus ? `<div class="row"><span>デザイン</span><span>没頭中（差し入れはため込む：${Math.round(st.stash || 0)}kcal）</span></div>` : ''}
+      ${h.id === 'rin' ? `<div class="row"><span>勤務</span><span>${['日勤', '夜勤', '明け・非番', '休み'][rinShift()]}</span></div>` : ''}
+      ${st.diet ? `<div class="row"><span>ダイエット</span><span>宣言中（あと${Math.max(1, st.diet.until - S.day)}日）</span></div>` : st.rebound ? `<div class="row"><span>ダイエット</span><span>リバウンド中</span></div>` : ''}
       <div class="row"><span>食べる量</span><span>${esc(eatLabel(st))}<span class="muted num">（食習慣${Math.round(st.habit * 100)}%）</span></span></div>
       ${fatMul(st) > 1 ? `<div class="row"><span>体質</span><span>${fatMul(st) >= 1.6 ? 'すっかりデブ体質' : fatMul(st) >= 1.3 ? '太りやすい' : 'ちょっと太りやすい'}<span class="muted num">（×${fatMul(st).toFixed(2)}）</span></span></div>` : ''}
       ${SNACK_TEXT[eatLevel(st)] ? `<div class="row"><span>間食</span><span>${SNACK_TEXT[eatLevel(st)]}</span></div>` : ''}
@@ -1383,12 +1514,19 @@ function openModal(kind, html) {
 }
 function closeModal() {
   const kind = modalKind; modalKind = null;
+  if (kind === 'gift' && S) S.giftMode = null;
   $('#modal').hidden = true; $('#modal').innerHTML = '';
   if (kind === 'cook' && S && S.invite) { const h = H[S.invite.id]; S.invite = null; narr(`（結局、${h.name}とお茶を飲んで、部屋まで送った）`); advanceSlot(); return; }
   if (kind === 'shop' && shopBought) { shopBought = false; sceneBg('supermarket'); encounter('shopping') || encounter('town'); narr('買い出しから戻った。'); advanceSlot(); }
-  else if (kind === 'night') { narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`); render(); }
+  else if (kind === 'night' && S.pendingEnding) { const k = S.pendingEnding; S.pendingEnding = null; openModal('ending', endingHTML(k)); }
+  else if (kind === 'night' || kind === 'ending') {
+    narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`);
+    HS().filter(h => h.birthday === mmdd() && S.h[h.id].met).forEach(h => narr(`今日は${h.name}の誕生日だ。`));
+    (C.seasons || []).filter(e => e.from === mmdd()).forEach(e => narr(`今日から${e.name}の時期だ。自室から誘える。`));
+    render();
+  }
 }
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && modalKind !== 'night') closeModal(); });
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && modalKind !== 'night' && modalKind !== 'ending') closeModal(); });
 
 function shopHTML() {
   return `<h3>コンビニ・スーパー</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>${shopBought ? '　戻ると時間が進む' : ''}</div>
@@ -1472,9 +1610,91 @@ function diaryHTML(h) {
     <div class="roster">${rows}</div>
     <div class="acts" style="margin-top:10px"><button class="btn" data-act="rosterOpen">住人一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`;
 }
+/* ---------- v1.6：食事会・設備・季節・誕生日・ギャラリー・エンディング ---------- */
+const partyMax = () => (hasFac('bbq') ? C.party.maxBbq : C.party.max);
+const partyCands = () => HS().filter(h => { const st = S.h[h.id]; return st.met && present(h) && st.aff >= C.party.minAffection && !st.diet && (st.captured || st.wary < C.waryVisitRefuse); });
+function partyHTML() {
+  const sel = S.partySel || [];
+  return `<h3>食事会</h3><div class="sub">呼ぶ人を選ぶ（最大${partyMax()}人）。${yen(C.party.price)}。${hasFac('bbq') ? '中庭でバーベキュー' : '101号室で鍋'}。満腹に関係なく、みんなよく食べる。</div>
+    ${partyCands().map(h => `<button class="item pick ${sel.includes(h.id) ? 'on' : ''}" data-act="partyToggle" data-id="${h.id}"><div>${esc(h.name)}<small>親密度 ${Math.round(S.h[h.id].aff)}・${esc(eatLabel(S.h[h.id]))}</small></div><span class="num">${sel.includes(h.id) ? '✓' : ''}</span></button>`).join('')}
+    <div class="acts"><button class="btn primary" data-act="partyGo" ${sel.length ? '' : 'disabled'}>${sel.length}人で開く<small>時間が進む</small></button><button class="btn close" data-act="close">やめる</button></div>`;
+}
+const seasonCands = e => HS().filter(h => S.h[h.id].met && S.h[h.id].aff >= 35 && (!e.only || e.only.includes(h.id)));
+const seasonsToday = () => (C.seasons || []).filter(e => inRange(mmdd(), e.from, e.to) && e.slots.includes(slotName()) && !(S.seasonDone || []).includes(e.id + ':' + yearOf()) && (!e.only || seasonCands(e).length));
+const bdayToday = () => HS().filter(h => h.birthday === mmdd() && S.h[h.id].met && S.h[h.id].aff >= 35 && !(S.bdayDone || []).includes(h.id + ':' + yearOf()));
+function facHTML() {
+  return `<h3>設備・修繕</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>。一度そろえれば、ずっと使える。</div>
+    ${(C.facilities || []).map(f => `<div class="item"><div>${esc(f.name)}<small>${esc(f.desc)}</small></div>${hasFac(f.id) ? '<span class="chip like">設置済み</span><span></span>' : `<span class="num">${yen(f.price)}</span><button class="mini" data-act="facBuy" data-id="${f.id}" ${S.money >= f.price ? '' : 'disabled'}>買う</button>`}</div>`).join('')}
+    <button class="btn close" data-act="close">閉じる</button>`;
+}
+function imageAt(h, n, st) {
+  let src = h.images && h.images[n];
+  if (h.routes && st.route && n >= (h.routes.fromStage || 1) && h.routes[st.route] && h.routes[st.route][n]) src = h.routes[st.route][n];
+  if (src && window.IMAGE_EXT) src = src.replace(/\.png$/, window.IMAGE_EXT);
+  return src || '';
+}
+function galleryHTML() {
+  const list = D.heroines.filter(h => active(h) && S.h[h.id].met);
+  return `<h3>ギャラリー</h3><div class="sub">これまでに見た体型（段階）の立ち絵。タップで大きく表示。</div>
+    ${list.map(h => { const st = S.h[h.id], top = Math.max(st.topStage || 1, st.stage);
+      return `<div class="gal"><b>${esc(h.name)}</b> <small class="muted">${top}/15</small><div class="gthumbs">${Array.from({ length: 15 }, (_, i) => i + 1).map(n => n <= top
+        ? `<button class="gth" data-act="galView" data-id="${h.id}" data-n="${n}"><img src="${imageAt(h, n, st)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span>${n}</span></button>`
+        : `<span class="gth locked"><span>${n}</span></span>`).join('')}</div></div>`; }).join('') || '<p class="muted">まだ誰とも会っていない。</p>'}
+    <button class="btn close" data-act="close">閉じる</button>`;
+}
+function endingHTML(kind) {
+  const hs = HS().filter(h => S.h[h.id].met), cap = hs.filter(h => S.h[h.id].captured);
+  const best = hs.slice().sort((a, b) => S.h[b.id].aff - S.h[a.id].aff)[0];
+  const key = kind === 'full' ? 'full' : cap.length && cap.length === HS().length ? 'harem' : cap.length ? 'one' : 'alone';
+  const e = (D.endings || {})[key] || { title: '1年の終わり', text: [] };
+  const yr = S.endYear || yearOf();
+  const fill = s => nameFill(String(s).replace(/\{best\}/g, best ? best.name : '').replace(/\{count\}/g, cap.length).replace(/\{year\}/g, yr));
+  const rows = hs.map(h => { const st = S.h[h.id];
+    return `<div class="drow"><div class="l1"><b>${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</b><span class="num">${h.weight.toFixed(1)} → ${st.weight.toFixed(1)}kg</span><span>段階${st.stage}「${esc(stageInfo(st.stage).name)}」</span></div>
+      <div class="l2">親密度 ${Math.round(st.aff)}・${esc(eatLabel(st))}</div></div>`; }).join('');
+  return `<div class="kicker">${kind === 'full' ? 'SPECIAL ENDING' : `${yr}年度の総決算`}</div><h3>${esc(e.title)}</h3>
+    <div class="ending">${(e.text || []).map(x => `<p>${esc(fill(x))}</p>`).join('')}</div>
+    <div class="roster">${rows}</div>
+    <button class="btn primary close" data-act="close">このまま続ける<small>セーブはそのまま。次の年度へ</small></button>`;
+}
+/* ---------- v1.6 キャラ専用の仕組み ---------- */
+const SPX = () => (S.sp = S.sp || {});
+const marikoRank = st => (C.marikoRanks || []).find(r => st.stage <= r.to) || {};
+const karenCheat = st => { const d = dow(); return st.stage >= 13 || d === 6 || (st.stage >= 5 && d === 2) || (st.stage >= 9 && d === 4); };
+const karenFollowers = st => (st.stage <= 4 ? 40 : st.stage <= 12 ? Math.round((40 - (st.stage - 4) * 3.5) * 10) / 10 : [45, 52, 58][st.stage - 13]);
+function himekaFriends(st) {
+  if (st.stage <= 4) return { label: '取り巻き', n: 10 };
+  if (st.stage <= 12) return { label: '取り巻き', n: Math.max(0, Math.round(10 - (st.stage - 4) * 1.25)) };
+  return st.route === 'otaku' ? { label: '漫研の仲間', n: (st.stage - 12) * 2 } : { label: '本当の友達', n: st.stage - 12 };
+}
+function syncRoute() {
+  const h = H.himeka; if (!h || !S.h.himeka) return; const fl = flagsOf(h), st = S.h.himeka;
+  if (fl.includes('himeka_route_otaku')) st.route = 'otaku'; else if (fl.includes('himeka_route_gal')) st.route = 'gal';
+}
+// 差し入れの倍率（葵のやけ食い・香蓮のチートデイ・姫華のパシリ命令）
+function giftMul(h, st, f) {
+  let m = 1;
+  if (h.id === 'aoi' && st.yake === S.day) m *= 1.5;
+  if (h.id === 'karen' && karenCheat(st)) m *= 2;
+  if (h.id === 'himeka' && st.order === f.id) m *= 1.5;
+  return m;
+}
+// 葵の嫉妬：ほかの住人に食べさせると上がる
+function aoiJealous(other) {
+  const a = H.aoi, st = a && S.h.aoi; if (!st || !st.met || other.id === 'aoi') return;
+  const sameB = bldOf(a) === bldOf(other) && present(a) ? 3 : 0, caps = HS().filter(x => x.id !== 'aoi' && S.h[x.id].captured).length;
+  st.jeal = clamp((st.jeal || 0) + 5 + sameB + caps, 0, 100);
+}
+// 特別な行動（自室）：千早へのお供え
+function offerHTML() {
+  return `<h3>陽守神社にお供えする</h3><div class="sub">お供えは、あとで千早が「おさがり」としていただく。警戒に関係なく受け取ってもらえる（親密度の上がり方は少し小さい）。</div>
+    ${Object.entries(S.inv).map(([id, n]) => { const f = FOOD[id]; return `<div class="item"><div>${esc(f.name)}<small>${f.kcal}kcal</small></div><span class="num">×${n}</span><button class="mini" data-act="offer" data-id="${id}">お供え</button></div>`; }).join('') || '<p class="muted">手持ちの食べ物がない。</p>'}
+    <button class="btn close" data-act="close">やめる</button>`;
+}
 function menuHTML() {
   return `<h3>メニュー</h3><div class="acts" style="margin-top:0">
     <button class="btn" data-act="rosterOpen">住人一覧・成長日記<small>会った住人の親密度と、毎日の体型の記録</small></button>
+    <button class="btn" data-act="galleryOpen">ギャラリー<small>これまでに見た立ち絵</small></button>
     <button class="btn" data-act="saveNow">セーブ<small>${cloudDoc ? 'アカウントに保存（自動セーブもあり）' : 'このブラウザに保存'}</small></button>
     <button class="btn" data-act="exportOpen">セーブコード<small>書き出して別の端末へ</small></button>
     <button class="btn" data-act="importOpen">コードを読み込む<small>貼り付けて再開</small></button>
@@ -1521,6 +1741,86 @@ const ACT = {
   menu() { openModal('menu', menuHTML()); },
   rosterOpen() { openModal('roster', rosterHTML()); },
   diaryOpen(d) { openModal('diary', diaryHTML(H[d.id])); },
+  galleryOpen() { openModal('gallery', galleryHTML()); },
+  galView(d) {
+    const h = H[d.id], n = +d.n, si = stageInfo(n) || {};
+    openModal('gallery', `<h3>${esc(h.name)}　段階${n}「${esc(si.name || '')}」</h3><div class="galbig"><img src="${imageAt(h, n, S.h[h.id])}" alt="${esc(h.name)} 段階${n}"></div>
+      <div class="sub">${esc(si.desc || '')}</div><div class="acts"><button class="btn" data-act="galleryOpen">一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`);
+  },
+  facOpen() { openModal('fac', facHTML()); },
+  facBuy(d) {
+    const f = (C.facilities || []).find(x => x.id === d.id); if (!f || hasFac(f.id) || S.money < f.price) return;
+    S.money -= f.price; (S.fac = S.fac || {})[f.id] = S.day;
+    narr(`${f.name}をそろえた。${f.desc}。`); save(); openModal('fac', facHTML()); render();
+  },
+  partyOpen() { S.partySel = []; openModal('party', partyHTML()); },
+  partyToggle(d) { const s = S.partySel = S.partySel || []; const i = s.indexOf(d.id); if (i >= 0) s.splice(i, 1); else if (s.length < partyMax()) s.push(d.id); openModal('party', partyHTML()); },
+  partyGo() {
+    const hs = (S.partySel || []).map(id => H[id]); S.partySel = []; closeModal(); if (!hs.length) return;
+    const P = C.party; S.money -= P.price; S.parties = (S.parties || 0) + 1;
+    narr(hasFac('bbq') ? '（中庭のバーベキューコンロに火を入れ、ベンチに皿を並べた）' : '（101号室のちゃぶ台に大鍋を据えて、カセットコンロに火をつけた）');
+    narr(`（${hs.map(h => h.name).join('、')}が集まった）`);
+    const kcal = Math.round((P.kcal + S.cook * P.cookBonus) * (hasFac('cooker') ? 1.2 : 1));
+    hs.forEach(h => { const st = S.h[h.id]; speak(h, 'party'); st.intake += kcal; st.ate = true; st.habit = clamp(st.habit + P.habit, 0, 1); addAff(h, P.affection + (hasFac('kotatsu') ? 2 : 0)); });
+    if (hs.length >= 2) {
+      const [a, b] = hs.slice().sort(() => Math.random() - 0.5);
+      sayOther(a, 'partyAbout', b);
+      if (eatLevel(S.h[a.id]) >= 2 && eatLevel(S.h[b.id]) >= 2 && Math.random() < 0.6) {
+        narr(`（いつの間にか、${shortName(a)}と${shortName(b)}の食べ比べが始まった）`);
+        sayOther(a, 'compete', b); sayOther(b, 'compete', a);
+        [a, b].forEach(h => { S.h[h.id].intake += P.competeKcal; });
+      }
+    }
+    narr(`（鍋が空になるまで、にぎやかな時間が続いた。${hs.length}人とも、おなかをさすりながら帰っていった）`);
+    S.view = { type: 'self' }; advanceSlot();
+  },
+  seasonOpen(d) {
+    const e = C.seasons.find(x => x.id === d.id), cands = seasonCands(e);
+    openModal('season', `<h3>${esc(e.name)}</h3><div class="sub">誰を誘う？（1年に1回・1人）</div>
+      ${cands.map(h => `<button class="item pick" data-act="seasonGo" data-ev="${e.id}" data-id="${h.id}"><div>${esc(h.name)}<small>親密度 ${Math.round(S.h[h.id].aff)}${S.h[h.id].captured ? '・攻略済み' : ''}</small></div><span></span></button>`).join('') || '<p class="muted">誘えるほど親しい住人がいない（親密度35から）。</p>'}
+      <button class="btn close" data-act="close">やめる</button>`);
+  },
+  seasonGo(d) {
+    const e = C.seasons.find(x => x.id === d.ev), h = H[d.id], st = S.h[h.id]; closeModal();
+    (S.seasonDone = S.seasonDone || []).push(e.id + ':' + yearOf());
+    if (e.bg === 'room101') S.view = { type: 'self' }; else sceneBg(e.bg === 'apartment' ? 'entrance' : e.bg);
+    st.intake += e.kcal; st.ate = true; st.habit = clamp(st.habit + 0.02, 0, 1); addAff(h, 4);
+    if (!tryScene(h, 'season', { season: e.id })) { narr(`（${h.name}と、${e.name}を楽しんだ）`); speak(h, 'greet'); }
+    S.view = { type: 'self' }; advanceSlot();
+  },
+  bday(d) {
+    const h = H[d.id], st = S.h[h.id], B = C.birthday; if (S.money < B.price) return;
+    S.money -= B.price; (S.bdayDone = S.bdayDone || []).push(h.id + ':' + yearOf());
+    narr(`（ケーキの箱を持って、${h.name}の部屋を訪ねた）`);
+    st.intake += B.kcal; st.ate = true; st.habit = clamp(st.habit + B.habit, 0, 1); addAff(h, B.affection);
+    if (!tryScene(h, 'birthday')) speak(h, 'birthday');
+    advanceSlot();
+  },
+  giftOpenH() { S.giftMode = 'hinata'; openModal('gift', giftHTML(room())); },
+  lesson() {
+    const h = room(), st = S.h[h.id]; if (S.cook < 2 || st.lessonDay === S.day) return;
+    const r = knownRecipes().slice(-1)[0] || { kcal: 400, name: '料理' };
+    st.lessonDay = S.day; st.intake += Math.round(r.kcal * 1.15); st.ate = true; st.habit = clamp(st.habit + 0.04, 0, 1); addAff(h, 3);
+    narr(`（栞の台所で、一緒に「${r.name}」を作った。失敗した分も、栞は「もったいない」と全部食べた）`);
+    if (!tryScene(h, 'lesson')) speak(h, 'homeCook');
+    S.view = { type: 'map' }; advanceSlot();
+  },
+  offerOpen() { openModal('offer', offerHTML()); },
+  offer(d) {
+    const h = H.chihaya, st = S.h.chihaya, f = FOOD[d.id]; if (!h || !st || !S.inv[d.id]) return;
+    closeModal(); S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
+    st.intake += f.kcal; st.habit = clamp(st.habit + 0.01, 0, 1); addAff(h, 1); SPX().offerDay = S.day;
+    sceneBg('town'); narr(`（陽守神社の拝殿に、${f.name}をお供えした）`);
+    narr(`（しばらくして、社務所の奥から千早が出てきた）`); speak(h, 'offering');
+    advanceSlot();
+  },
+  clothesTrip() {
+    const h = room(), st = S.h[h.id], T = C.clothesTrip; if (S.money < T.price) return;
+    S.money -= T.price; st.clothesNew = false; sceneBg('town');
+    narr(`（${h.name}と、駅前の服屋へ出かけた）`); addAff(h, T.affection);
+    if (!tryScene(h, 'clothes')) speak(h, 'clothes');
+    S.view = { type: 'map' }; advanceSlot();
+  },
   close() { closeModal(); },
   saveNow() { closeModal(); narr(save() ? (cloudDoc ? 'セーブしました。（アカウントに保存）' : 'セーブしました。') : 'このブラウザでは保存できませんでした。セーブコードを使ってください。'); },
   exportOpen() {
@@ -1618,7 +1918,10 @@ const ACT = {
       }
       tutorialRent(h); return;
     }
-    if (!present(h)) { narr(`${h.room}号室。…留守のようだ。` + (canVisit(st) ? `（在室しやすい時間：${schedText(h)}）` : '')); return; }
+    if (!present(h)) {
+      if (st.away && S.day <= st.away.until) { narr(st.away.text || `${h.room}号室。…今は訪ねられない。`); return; }
+      narr(`${h.room}号室。…留守のようだ。` + (canVisit(st) ? (h.id === 'rin' ? '（交代制勤務。日によって在室の時間が変わる）' : `（在室しやすい時間：${schedText(h)}）`) : '')); return;
+    }
     if (S.packages[h.id]) { deliver(h); return; }
     if (isMonthEnd() && !S.rentDone[h.id]) { collectRent(h); return; }
     if (!canVisit(st)) { narr(`${h.room}号室。…用もないのに訪ねるほどの仲ではない。（親密度${C.visitMinAffection}から訪問できる）`); return; }
@@ -1628,16 +1931,54 @@ const ACT = {
     if (since) narr(`（${since}）`);
     st.lastSeenW = st.weight;
     if (eatLevel(st) >= 5) eatSpecial(h, 'visit5');   // 無尽蔵：訪ねるといつも何か食べている
+    if (h.id === 'himeka') syncRoute();
+    // キャラ専用（優先）。どれか1つ出たら、ふつうのあいさつは出さない
+    const special = (() => {
+      if (h.id === 'himeka' && st.stage >= 13 && !st.route && pickScene(h, 'route')) { tryScene(h, 'route'); return true; }
+      if (h.id === 'sumire' && st.stage > st.seenStage) {
+        const m = measure(h, st.weight); st.seenStage = st.stage;
+        narr(`（すみれがメジャーを取り出して、自分のサイズを測りはじめた）`);
+        if (m) narr(`（B${Math.round(m.bust)}・W${Math.round(m.waist)}・H${Math.round(m.hip)}、${cupOf(m)}カップ）`);
+        if (!tryScene(h, 'measure')) speak(h, 'greet'); return true;
+      }
+      if (h.id === 'sumire' && st.stashPending) { st.stashPending = false; if (tryScene(h, 'stashEat')) return true; }
+      if (h.id === 'shiori' && st.husbandAfter && !(st.away && S.day <= st.away.until)) { st.husbandAfter = false; if (tryScene(h, 'husbandAfter')) return true; }
+      if (h.id === 'shiori' && dow() === 6 && slotName() === '夜' && st.callDay !== S.day) { st.callDay = S.day; if (tryScene(h, 'videoCall')) return true; }
+      if (h.id === 'aoi' && (st.jeal || 0) >= 50) { st.jeal -= 30; st.yake = S.day; if (tryScene(h, 'jealousy')) return true; }
+      if (h.id === 'rin' && rinShift() === 2 && slotName() === '朝' && st.akeDay !== S.day) { st.akeDay = S.day; st.intake += 800; narr('（夜勤明けの凛は、腹ぺこだった。大盛りの朝ごはんを平らげていく）'); speak(h, 'ake'); return true; }
+      if (h.id === 'rin' && st.stage >= 5 && st.fitYear !== yearOf()) { st.fitYear = yearOf(); if (tryScene(h, 'fitness')) return true; }
+      if (h.id === 'karen' && karenCheat(st) && st.cheatSeen !== S.day && Math.random() < 0.5) { st.cheatSeen = S.day; if (tryScene(h, 'cheat')) return true; }
+      if (h.twinOf && S.h[h.twinOf] && S.h[h.twinOf].stage - st.stage >= 2 && S.day - (st.gapDay || -99) >= 14) {
+        st.gapDay = S.day; if (tryScene(h, 'twinGap')) { const tw = S.h[h.twinOf]; tw.habit = clamp(tw.habit + 0.02, 0, 1); st.habit = clamp(st.habit + 0.02, 0, 1); return true; }
+      }
+      if (h.twinOf && S.h.mio && S.h.nagisa && (isWeekend() || slotName() === '夜') && present(H.mio) && present(H.nagisa)) {
+        const sp = SPX();
+        if (!sp.swap1 && S.h.mio.stage <= 4 && S.h.nagisa.stage <= 4 && S.h.mio.aff >= 35 && S.h.nagisa.aff >= 35) { sp.swap1 = true; if (tryScene(H.mio, 'twinSwap')) return true; }
+        if (!sp.swap2 && S.h.mio.stage >= 13 && S.h.nagisa.stage >= 13) { sp.swap2 = true; if (tryScene(H.mio, 'twinSwap2')) return true; }
+      }
+      return false;
+    })();
+    if (special) { render(); return; }
+    // 姫華のパシリ命令：次に来るとき、これを持ってこい
+    if (h.id === 'himeka' && !st.order && Math.random() < 0.6) {
+      const fs = (D.foods || []).filter(x => x.price); const f = pick(fs);
+      if (f) { st.order = f.id; say(h.name, String(line(h, 'orderAsk')).split('{food}').join(f.name), h.color); }
+    }
     // 優先順：段階アップ ＞ 節目イベント（大きな節目 ＞ 服のサイズアップ ＞ そのほか） ＞ ふつうのあいさつ
     if (st.stage > st.seenStage) {
       const sl = stageReaction(h, st);
       if (sl) say(h.name, sl, h.color);
       else { narr(`（${h.name}の体つきが「${stageInfo(st.stage).name}」になっている）`); speak(h, 'greet'); }
       st.seenStage = st.stage;
-    } else if (!playMilestone(h, st)) {
+    } else if (st.dietNew) { st.dietNew = false; if (!tryScene(h, 'diet')) speak(h, 'dietRefuse'); }
+    else if (st.dietEndPending) { st.dietEndPending = false; if (!tryScene(h, 'dietEnd')) speak(h, 'greet'); }
+    else if (st.scalePending) { S.ctxKg = st.scalePending; st.scalePending = null; if (!tryScene(h, 'scale')) { narr(`（${h.name}は、体重計に乗ったばかりらしい。…${S.ctxKg}kgを超えたようだ）`); speak(h, 'greet'); } }
+    else if (!playMilestone(h, st)) {
       // ときどき、変化に気づく会話（visit シーン）
       if (!(Math.random() < (C.visitSceneChance || 0) && tryScene(h, 'visit'))) speak(h, 'greet');
     }
+    // 攻略した人が2人以上いると、ときどきやきもち
+    if (st.captured && Math.random() < ((C.relations || {}).jealousChance || 0)) { const o = HS().filter(x => x.id !== h.id && S.h[x.id].captured); if (o.length) sayOther(h, 'jealous', pick(o)); }
     render();
   },
   talk() {
@@ -1650,10 +1991,20 @@ const ACT = {
   giftOpen() { openModal('gift', giftHTML(room())); },
   give(d) {
     const h = room(), st = S.h[h.id], f = FOOD[d.id];
+    const forced = S.giftMode === 'hinata';   // 莉緒：ひなたと一緒なら、警戒に関係なく食べる
     closeModal();
-    if (!st.captured && st.wary >= C.waryGiftRefuse) { speak(h, 'wary'); render(); return; }
+    if (!forced && !st.captured && st.wary >= C.waryGiftRefuse) { speak(h, 'wary'); render(); return; }
+    dietStopCheck(h, st);
+    if (!forced && st.diet) { speak(h, 'dietRefuse'); render(); return; }
+    // すみれ：デザインに没頭中は、受け取ってため込む（完成の日にまとめて食べる）
+    if (h.id === 'sumire' && st.focus) {
+      S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
+      st.stash = (st.stash || 0) + f.kcal; st.gifts++; addAff(h, C.giftAffection);
+      speak(h, 'focusGift'); narr(`（${f.name}は、作業机の横の山に積まれた。ため込んだ差し入れ：${Math.round(st.stash)}kcal）`);
+      render(); return;
+    }
     const bad = f.tags.filter(t => isDislike(h, st, t));
-    if (bad.length && !favorable(st)) { bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
+    if (!forced && bad.length && !favorable(st)) { bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
     const warmDislike = bad.length > 0;
     if (st.full + f.full > st.cap) {
       if (!eatSay(h, 'full')) speak(h, 'full'); addWary(h, C.waryOverfull);
@@ -1661,7 +2012,18 @@ const ACT = {
       render(); return;
     }
     S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
-    st.full += f.full; st.intake += f.kcal; st.gifts++;
+    const kcalG = Math.round(f.kcal * giftMul(h, st, f));
+    st.full += f.full; st.intake += kcalG; st.gifts++;
+    aoiJealous(h);
+    if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
+    if (h.id === 'karen' && karenCheat(st)) narr('（今日はチートデイ。差し入れはいつもの倍、おいしく食べてもらえる）');
+    if (h.id === 'aoi' && st.yake === S.day) narr('（やけ食いの勢いで、いつもより多く食べている）');
+    // 双子のおすそわけ（もう1人が部屋にいるとき）
+    if (h.twinOf && H[h.twinOf] && present(H[h.twinOf]) && S.h[h.twinOf]) {
+      const tw = S.h[h.twinOf], r = h.id === 'mio' && st.stage - tw.stage >= 2 ? 0.5 : 0.3, k = Math.round(kcalG * r);
+      st.intake -= k; tw.intake += k;
+      narr(`（${shortName(H[h.twinOf])}が「おすそわけ」と言って、${Math.round(r * 10)}割ほど食べた）`);
+    }
     st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
     const good = f.tags.filter(t => isLike(h, st, t));
     if (warmDislike) {
@@ -1681,7 +2043,9 @@ const ACT = {
     else { speak(h, 'giftNormal'); addAff(h, C.giftAffection); }
     if (Math.random() < (C.eatGiftChance == null ? 1 : C.eatGiftChance)) eatSay(h, 'gift');
     narr(`（${f.name}を食べている）`);
-    if (!st.captured && st.gifts > C.giftAllowance[tierOf(st.aff)]) { addWary(h, C.waryTooMany); narr('（少し不審がられたようだ）'); }
+    if (!forced && !st.captured && st.gifts > C.giftAllowance[tierOf(st.aff)]) { addWary(h, C.waryTooMany); narr('（少し不審がられたようだ）'); }
+    if (forced && st.rhDay !== S.day) { st.rhDay = S.day; if (!tryScene(h, 'rioHinata')) narr('（ひなたに「一緒に食べよ？」と言われて、莉緒はしぶしぶ口に運んだ）'); addAff(H.hinata, 1); }
+    S.giftMode = null;
     stretch(h); render();
   },
   // 手料理：作れる料理から選ぶ
@@ -1700,10 +2064,13 @@ const ACT = {
     const h = d.id ? H[d.id] : room(), st = S.h[h.id], base = D.meals[d.kind];
     const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
     const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : base;
+    dietStopCheck(h, st);
+    if (st.diet && !st.captured) { speak(h, 'dietRefuse'); render(); return; }
     if (st.full + m.full > st.cap) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
-    const kcal = m.kcal;
+    const kcal = Math.round(m.kcal * (rcp && hasFac('cooker') ? 1.2 : 1));
     if (rcp) narr(`（${rcp.name}を作った）`);
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;
+    aoiJealous(h);
     if (d.kind === 'eatOut') sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
     st.habit = clamp(st.habit + m.habit, 0, 1);
     speak(h, d.kind); addAff(h, m.affection); stretch(h);
@@ -1746,20 +2113,30 @@ const ACT = {
     advanceSlot();
   },
   prepOpen() {
-    openModal('prep', `<h3>作り置き</h3><div class="sub">${C.prepPortions}食分を作って、差し入れとして持っておく。所持金 ${yen(S.money)}</div>
+    openModal('prep', `<h3>作り置き</h3><div class="sub">${prepN()}食分を作って、差し入れとして持っておく。所持金 ${yen(S.money)}</div>
       ${knownRecipes().slice().reverse().map(r => `<div class="item"><div>${esc(r.name)}<small>${r.kcal}kcal・満腹+${r.full}・所持 ${S.inv['prep_' + r.id] || 0}</small></div>
-        <span class="num">${yen(r.cost * C.prepPortions)}</span><button class="mini" data-act="prep" data-recipe="${r.id}" ${S.money >= r.cost * C.prepPortions ? '' : 'disabled'}>作る</button></div>`).join('')}
+        <span class="num">${yen(r.cost * prepN())}</span><button class="mini" data-act="prep" data-recipe="${r.id}" ${S.money >= r.cost * prepN() ? '' : 'disabled'}>作る</button></div>`).join('')}
       <button class="btn close" data-act="close">やめる</button>`);
   },
   prep(d) {
     const r = RECIPES.find(x => x.id === d.recipe); if (!r) return;
     closeModal();
-    S.money -= r.cost * C.prepPortions;
-    S.inv['prep_' + r.id] = (S.inv['prep_' + r.id] || 0) + C.prepPortions;
-    narr(`「${r.name}」を${C.prepPortions}食分作り置きした。差し入れとして住人に渡せる。`);
+    S.money -= r.cost * prepN();
+    S.inv['prep_' + r.id] = (S.inv['prep_' + r.id] || 0) + prepN();
+    narr(`「${r.name}」を${prepN()}食分作り置きした。差し入れとして住人に渡せる。`);
     advanceSlot();
   },
-  rest() { if (slotName() === '夜') narr('布団に入った。'); advanceSlot(); }
+  rest() {
+    if (slotName() === '夜') {
+      const mk = H.mariko, ms = S.h.mariko, rn = H.rin, rs = S.h.rin;
+      if (rn && rs && rs.met && active(rn) && !rs.captured && rinShift() === 2 && rs.stakeDay !== S.day && Math.random() < 0.3 && pickScene(rn, 'stakeout')) {
+        rs.stakeDay = S.day; narr('（コンビニへ行こうと外に出ると、電柱の陰に見覚えのある人影があった）'); tryScene(rn, 'stakeout');
+      } else if (mk && ms && ms.met && active(mk) && ms.aff >= 35 && Math.random() < 0.15 && pickScene(mk, 'lateNight')) {
+        narr('（深夜。布団に入りかけたところで、戸をたたく音がした）'); ms.intake += 600; tryScene(mk, 'lateNight');
+      } else narr('布団に入った。');
+    }
+    advanceSlot();
+  }
 };
 
 document.addEventListener('click', e => {
@@ -1777,5 +2154,7 @@ function start(data) {
   initCloud();
 }
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+// 自動テスト用の窓口（ゲームの動作には影響しない）
+window.__hidamari = { get S() { return S; }, ACT, H, C, D, SC, night: () => night(), render: () => render() };
 })();
 </script>

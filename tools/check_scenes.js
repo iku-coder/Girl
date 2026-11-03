@@ -1,16 +1,21 @@
 // 使い方: node tools/check_scenes.js scenes/akane.js [scenes/xxx.js ...]
 // 追加シーンファイル（window.addScenes('<id>', [...], {...})）の形式チェック
 const fs = require('fs'), path = require('path');
-const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'town', 'campus', 'job', 'shopping'];
-const COND = ['tiers', 'minAff', 'maxAff', 'flag', 'noFlag', 'late', 'weekend', 'slot', 'captured', 'minStage', 'maxStage', 'minMoney', 'chance', 'minHabit'];
+const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'town', 'campus', 'job', 'shopping', 'diet', 'dietEnd', 'scale', 'clothes', 'birthday', 'season', 'rioHinata', 'lesson', 'videoCall', 'husbandAfter', 'jealousy', 'rentLate', 'lateNight', 'stashEat', 'measure', 'stakeout', 'fitness', 'route', 'twinGap', 'twinSwap', 'twinSwap2', 'cheat'];
+const COND = ['tiers', 'minAff', 'maxAff', 'flag', 'noFlag', 'late', 'weekend', 'slot', 'captured', 'minStage', 'maxStage', 'minMoney', 'chance', 'minHabit', 'season'];
 const NODE = ['say', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'branch', 'choices', 'prompt', 'next'];
 const CHOICE = ['text', 'line', 'if', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'say', 'next', 'silent'];
 let bad = 0;
 const err = (f, m) => { bad++; console.log(`NG ${f}: ${m}`); };
 for (const f of process.argv.slice(2)) {
   const calls = [];
-  global.window = { addScenes: (id, list, extra) => calls.push({ id, list, extra }) };
+  const extras = [];
+  global.window = { addScenes: (id, list, extra) => calls.push({ id, list, extra }), addExtra: (id, o) => extras.push({ id, o }) };
   try { new Function('window', fs.readFileSync(f, 'utf8'))(global.window); } catch (e) { err(f, '構文エラー ' + e.message); continue; }
+  extras.forEach(({ id, o }) => {
+    if (o.birthday != null && !/^\d\d-\d\d$/.test(o.birthday)) err(f, `addExtra ${id}: birthday は 'MM-DD'`);
+    Object.entries(o.lines || {}).forEach(([k, v]) => { if (!Array.isArray(v) || !v.length || v.some(x => typeof x !== 'string' && !(Array.isArray(x) && x.every(y => typeof y === 'string')))) err(f, `addExtra ${id}: lines.${k} は文字列の配列（または段階ごとの配列）`); });
+  });
   if (!calls.length) { err(f, 'window.addScenes が呼ばれていない'); continue; }
   for (const { id, list, extra } of calls) {
     const ids = new Set(); const counts = {};

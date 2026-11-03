@@ -10,7 +10,7 @@ window.GAME_DATA = {
     apartmentName: 'ひだまり荘',
     bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v1.5',
+    version: '試作版 v1.6',
     slots: ['朝', '昼', '夕', '夜'],
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
@@ -166,6 +166,63 @@ window.GAME_DATA = {
     // 出先での遭遇・会話の確率（1回の行動で1つまで）。専用の場所（大学・バイト・買い出し）を先に判定し、外れたら街中
     encounters: { campus: 0.35, job: 0.3, shopping: 0.3, town: 0.15, affection: 2 },
     campusHeroines: ['hinata', 'yukino', 'rio', 'mio', 'nagisa', 'himeka'],   // 主人公と同じ大学（葵は女子大なので除く）
+    // ---- v1.6 追加の仕組み ----
+    // エンディング：毎年3月31日の夜に「1年の総決算」。全員攻略・全員段階15は、その時点で特別な結末
+    endingDate: '03-31',
+    // 設備（自室の「設備・修繕」で買う。一度買えばずっと有効）
+    facilities: [
+      { id: 'nabe',    name: '大鍋とカセットコンロ',         price: 8000,  desc: '食事会を開けるようになる' },
+      { id: 'kotatsu', name: 'こたつ',                       price: 12000, desc: '部屋に呼んだときと食事会で、親密度がさらに+2' },
+      { id: 'cooker',  name: '業務用の炊飯器',               price: 15000, desc: '手料理と食事会のカロリー +20%' },
+      { id: 'fridge',  name: '大きな冷蔵庫',                 price: 30000, desc: '作り置きが1回で+2食分' },
+      { id: 'bbq',     name: '中庭のベンチとバーベキューコンロ', price: 40000, desc: '食事会に呼べる人数が3人→5人' },
+      { id: 'repair',  name: '外壁と屋根の修繕',             price: 80000, desc: '建物の傷み方が半分になる' }
+    ],
+    // ダイエット宣言：段階4以上で、ときどき言い出す。期間中は差し入れ・外食・手料理を断り、自分で食べる量も減る。
+    // 説得に成功（シーンの選択肢で setFlag 'diet_stop'）すれば即終了。最後までやると、そのあと数日リバウンド
+    diet: { chance: 0.015, minStage: 4, cooldown: 30, days: [5, 10], eatRatio: 0.85, rebound: { days: 3, kcal: 800, habit: 0.03 } },
+    // 食事会（自室・夕夜。大鍋が必要）
+    party: { price: 3000, kcal: 1300, cookBonus: 2, habit: 0.04, affection: 3, max: 3, maxBbq: 5, minAffection: 35, competeKcal: 400 },
+    // 住人同士：掃除中に2人に会うと、うわさ話（gossipChance）。攻略した人が2人以上いると、ときどきやきもち（jealousChance）
+    relations: { gossipChance: 0.35, jealousChance: 0.12 },
+    // 体重計：5kg刻み（10kg刻みは節目イベントがあるので、55・65・75…kg）を超えたら、次に会ったとき
+    scaleStep: 5,
+    // 服を買いに行く：服のサイズが上がったあと、部屋から誘える
+    clothesTrip: { price: 5000, affection: 4, minAffection: 50 },
+    // 誕生日（ヒロインごとの birthday は scenes/extra/<id>.js）
+    birthday: { price: 2500, kcal: 1000, affection: 6, habit: 0.02 },
+    // 季節の行事：期間中、自室に「〇〇に誘う」が出る。1年に1回（1人）
+    seasons: [
+      { id: 'hanami',     name: 'お花見',       label: 'お花見に誘う',       from: '04-01', to: '04-10', slots: ['昼', '夕'],       bg: 'town', kcal: 900 },
+      { id: 'gw',         name: 'ゴールデンウィーク', label: 'GWに出かける',  from: '05-03', to: '05-05', slots: ['昼', '夕'],       bg: 'town', kcal: 1000 },
+      { id: 'tsuyu',      name: '梅雨',         label: '雨の日に誘う',       from: '06-10', to: '06-20', slots: ['昼', '夕', '夜'], bg: 'town', kcal: 600 },
+      { id: 'tanabata',   name: '七夕',         label: '七夕の夜に誘う',     from: '07-07', to: '07-07', slots: ['夕', '夜'],       bg: 'town', kcal: 600 },
+      { id: 'matsuri',    name: '夏祭り',       label: '夏祭りに誘う',       from: '07-27', to: '07-29', slots: ['夕', '夜'],       bg: 'town', kcal: 1400 },
+      { id: 'umi',        name: '海',           label: '海に誘う',           from: '08-10', to: '08-16', slots: ['昼'],             bg: 'town', kcal: 1200 },
+      { id: 'tsukimi',    name: 'お月見',       label: 'お月見に誘う',       from: '09-15', to: '09-20', slots: ['夜'],             bg: 'apartment', kcal: 800 },
+      { id: 'halloween',  name: 'ハロウィン',   label: 'ハロウィンに誘う',   from: '10-31', to: '10-31', slots: ['夕', '夜'],       bg: 'town', kcal: 1000 },
+      { id: 'xmas',       name: 'クリスマス',   label: 'クリスマスに誘う',   from: '12-24', to: '12-25', slots: ['夕', '夜'],       bg: 'town', kcal: 1600 },
+      { id: 'oomisoka',   name: '大晦日',       label: '年越しそばに誘う',   from: '12-31', to: '12-31', slots: ['夜'],             bg: 'room101', kcal: 900 },
+      { id: 'shogatsu',   name: 'お正月',       label: '初詣に誘う',         from: '01-01', to: '01-03', slots: ['朝', '昼', '夕'], bg: 'town', kcal: 1400 },
+      { id: 'valentine',  name: 'バレンタイン', label: 'バレンタインに会う', from: '02-14', to: '02-14', slots: ['夕', '夜'],       bg: 'room101', kcal: 900 },
+      { id: 'hinamatsuri',name: 'ひな祭り',     label: 'ひな祭りに誘う',     from: '03-03', to: '03-03', slots: ['昼', '夕', '夜'], bg: 'room101', kcal: 900 },
+      // キャラ専用の行事（only の住人だけ誘える）
+      { id: 'setsubun',     name: '節分',         label: '陽守神社の節分祭へ',   from: '02-03', to: '02-03', slots: ['昼', '夕'],       bg: 'town', kcal: 900,  only: ['chihaya'] },
+      { id: 'shichigosan',  name: '七五三',       label: '陽守神社の七五三へ',   from: '11-15', to: '11-15', slots: ['昼', '夕'],       bg: 'town', kcal: 700,  only: ['chihaya'] },
+      { id: 'mochitsuki',   name: '餅つき',       label: '陽守神社の餅つきへ',   from: '12-28', to: '12-28', slots: ['昼', '夕'],       bg: 'town', kcal: 1500, only: ['chihaya'] },
+      { id: 'kagura_natsu', name: '夏祭りの神楽', label: '千早の神楽を見に行く', from: '07-28', to: '07-28', slots: ['夕', '夜'],       bg: 'town', kcal: 600,  only: ['chihaya'] },
+      { id: 'kagura_haru',  name: '初詣の神楽',   label: '千早の神楽を見に行く', from: '01-02', to: '01-02', slots: ['昼', '夕'],       bg: 'town', kcal: 600,  only: ['chihaya'] },
+      { id: 'misscon',      name: 'ミスコン',     label: '学園祭のミスコンへ',   from: '11-03', to: '11-03', slots: ['昼', '夕'],       bg: 'campus', kcal: 900, only: ['himeka'] },
+    ],
+    // 真理子の勤め先（段階で決まる。ヒロイン設定「勤め先と見た目のランクダウン」）
+    marikoRanks: [
+      { to: 4,  shop: '銀座の高級クラブ「ル・シエル」・指名ナンバーワン', name: '月乃' },
+      { to: 6,  shop: '銀座「ル・シエル」・ナンバーワンから陥落', name: '月乃' },
+      { to: 8,  shop: '六本木の会員制ラウンジ', name: 'ルナ' },
+      { to: 10, shop: '歌舞伎町のキャバクラ', name: 'まりあ' },
+      { to: 12, shop: '下町のスナック「夜明け」', name: 'まりちゃん' },
+      { to: 15, shop: 'ぽっちゃり専門店「まんまる」・指名ナンバーワン', name: 'まりりん' }
+    ],
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
@@ -324,7 +381,45 @@ window.GAME_DATA = {
   },
 
   /* ---- 全キャラ共通の予備セリフ。ヒロインの lines にそのキーがないときに使う（口調に癖のない言い方） ---- */
+  // エンディング（v1.6）。{best}＝いちばん親しい住人、{count}＝攻略した人数、{year}＝年度、〇〇＝主人公
+  endings: {
+    full: { title: 'ひだまりの楽園', text: [
+      '気がつけば、ひだまり荘とひだまりレジデンスの住人は、みんな〇〇の作るごはんを待つようになっていた。',
+      '廊下を歩けば、どの部屋からも「おかえり」と、少しくぐもった、しあわせそうな声がする。',
+      '階段がきしむのは、建物が古いせいだけじゃない。それを笑い合える人たちが、ここにはいる。',
+      '祖父が遺したボロアパートは、いつの間にか、世界でいちばんあたたかくて、ふくよかな場所になっていた。'
+    ] },
+    harem: { title: 'みんなの管理人', text: [
+      '{year}年度が終わる。住人たちは全員、〇〇のことを「特別な人」と呼ぶようになった。',
+      'まだ先は長い。冷蔵庫はいつも満杯で、鍋はいつも大きすぎるくらいがちょうどいい。',
+      '来年度も、ここで、みんなのごはんを作ろう。'
+    ] },
+    one: { title: 'ふたりのひだまり', text: [
+      '{year}年度が終わる。攻略した住人は{count}人。',
+      'いちばん近くにいるのは、{best}。今夜も「おなかすいた」と、101号室の戸をたたくだろう。',
+      'まだ攻略していない住人もいる。春は、また何かが始まる季節だ。'
+    ] },
+    alone: { title: 'ひとりの春', text: [
+      '{year}年度が終わる。管理人の仕事には、ずいぶん慣れた。',
+      'それでも101号室のちゃぶ台は、まだひとり分しか埋まっていない。',
+      'いちばん話す住人は{best}。…来年度こそ、もう少し近づけるだろうか。'
+    ] }
+  },
   commonLines: {
+    // v1.6：キャラごとの extra に無いときの予備
+    party: ['いただきます！', 'みんなで食べると、おいしいね', 'おかわり、ある？'],
+    partyAbout: ['{other}さん、いい食べっぷり', '{other}さんと食べるの、楽しいね'],
+    gossip: ['ねえ、{other}さん、最近ちょっと丸くなったよね', '{other}さん、前よりよく食べるようになったみたい'],
+    compete: ['…負けないから', 'まだまだ入るよ'],
+    jealous: ['…今日、{other}さんと会ってたでしょ', '{other}さんにも、そういう顔するんだ'],
+    dietRefuse: ['ごめん、今ダイエット中なの', '…今はだめ。決めたんだから'],
+    birthday: ['覚えててくれたの？…ありがとう', 'ケーキ…！ うれしい'],
+    clothes: ['この服、どうかな', '…サイズ、ひとつ上にしなきゃ'],
+    orderAsk: ['次は{food}ね。持ってこなかったら許さないから'],
+    orderOk: ['ちゃんと持ってきたじゃん。…ほめてあげる'],
+    focusGift: ['そこに置いといて。今、手が離せないの'],
+    offering: ['おさがり、ありがたくいただきました'],
+    ake: ['夜勤明けは、腹が減ってかなわん'],
     greetMorning: [['…おはようございます'], ['おはよう。朝から精が出るね'], ['おはよう。顔が見られてうれしい'], ['おはよう。…今日も来てくれる？']],
     greetEvening: [['…ただいま戻りました'], ['ただいま。掃除、おつかれさま'], ['ただいま。…顔を見たら、疲れが取れた'], ['ただいま。…待っててくれたの？']],
     greet: [['…何かご用ですか？'], ['いらっしゃい'], ['来てくれたんだ。どうぞ'], ['おかえり']],
