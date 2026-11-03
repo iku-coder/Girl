@@ -141,6 +141,7 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <div id="modal" hidden></div>
 
 <script src="data.js"></script>
+<script src="heroines.js"></script>
 <script src="scenes.js"></script>
 <script>
 (() => {
@@ -149,10 +150,17 @@ const D = window.GAME_DATA, C = D.config;
 const SAVE_KEY = 'hidamari_save_v1';
 const H = Object.fromEntries(D.heroines.map(h => [h.id, h]));
 const bldOf = h => h.building || 'apartment';
-const BY_ROOM = Object.fromEntries(D.heroines.map(h => [bldOf(h) + ':' + h.room, h]));
+const BY_ROOM = {};   // 'apartment:102' → [ヒロイン…]（双子は同じ部屋に2人）
+D.heroines.forEach(h => { (BY_ROOM[bldOf(h) + ':' + h.room] = BY_ROOM[bldOf(h) + ':' + h.room] || []).push(h); });
 const MAN = C.mansion || {};
 // マンションの住人は、マンションが建つまで登場しない
-const active = h => bldOf(h) !== 'mansion' || (S && S.mansionBuilt);
+const active = h => {
+  if (bldOf(h) === 'mansion' && !(S && S.mansionBuilt)) return false;
+  const a = h.appearIf;   // 登場条件（莉緒：ひなたが段階9以上）
+  if (a && S && !(S.h[a.heroine] && S.h[a.heroine].stage >= (a.minStage || 1)) && !(S.h[h.id] && S.h[h.id].arrived)) return false;
+  if (a && S && S.h[h.id]) S.h[h.id].arrived = true;   // 一度来たら、条件が外れても居続ける
+  return true;
+};
 const HS = () => D.heroines.filter(active);
 const rentOf = h => h.rent || (bldOf(h) === 'mansion' ? MAN.rentPerMonth : C.rentPerMonth) || C.rentPerMonth;
 const FOOD = Object.fromEntries(D.foods.map(f => [f.id, f]));
@@ -297,7 +305,7 @@ function say(name, text, color) {
 const narr = t => say('', t);
 function line(h, key) {
   const capt = S.h[h.id].captured && h.lines[key + 'Captured'];
-  const src = capt || h.lines[key];
+  const src = capt || h.lines[key] || (D.commonLines || {})[key];
   if (!src || !src.length) return '……';
   if (Array.isArray(src[0])) return pick(src[Math.min(tierOf(S.h[h.id].aff), src.length - 1)]);
   return pick(src);
@@ -306,7 +314,8 @@ const speak = (h, key) => say(h.name, line(h, key), h.color);
 function flush() {
   flushPending = false;
   if (!incoming.length) return;
-  Q = settled ? incoming : Q.concat(incoming);
+  // 読み終えた最後のメッセージは新しいメッセージで置き換える。ただし時間が進んだ直後は、まだ読んでいる最中なので後ろにつなげる
+  Q = settled && !keepLast ? incoming : Q.concat(incoming);
   incoming = []; settled = false; drawMsg();
 }
 // Q の要素は { name, text, color } か、選択肢 { choice: {...} }
@@ -333,7 +342,7 @@ $('#tap').addEventListener('click', () => { Q.shift(); drawMsg(); });
 
 /* ---------- state ---------- */
 function freshHeroine(h) {
-  const st = { aff: h.startAffection || 0, wary: 0, weight: h.weight, full: 0,
+  const st = { aff: h.startAffection || 0, wary: h.startWary || 0, weight: h.weight, full: 0,
     cap: Math.round(C.baseCapacity * (h.appetite || 1)), habit: 0, intake: 0, gifts: 0,
     talked: false, ate: false, known: {}, visits: 0, captured: false, capturedDay: null };
   st.stage = stageOf(h, st.weight); st.seenStage = st.stage;
@@ -378,7 +387,7 @@ function addAff(h, d) {
 function capture(h) {
   const st = S.h[h.id];
   st.captured = true; st.capturedDay = S.day; st.wary = 0;
-  (h.lines.capture || ['……ずっと、一緒にいて']).forEach(t => say(h.name, t, h.color));
+  (h.lines.capture || (D.commonLines || {}).capture || ['……ずっと、一緒にいて']).forEach(t => say(h.name, t, h.color));
   narr(`♥ ${h.name}を攻略した！（${S.day}日目）　これからも一緒に暮らしていける。`);
   const n = D.heroines.filter(x => S.h[x.id].captured).length;
   if (!S.bankbook && n >= (MAN.unlockCaptured || 5)) {
@@ -411,8 +420,9 @@ function stretch(h) {
 // 朝の掃除中の挨拶
 function morningGreet() {
   let n = 0;
-  HS().forEach(h => {
-    if (Math.random() >= C.morningGreetChance) return;
+  // 住人が多いので、1回の掃除で会うのは最大 morningGreetMax 人まで（順番はランダム）
+  HS().slice().sort(() => Math.random() - 0.5).forEach(h => {
+    if (n >= (C.morningGreetMax || 2) || Math.random() >= C.morningGreetChance) return;
     n++;
     narr(isWeekend() ? `${h.name}がゴミ出しに出てきた。` : `${h.name}が出かけるところだった。`);
     addAff(h, C.morningGreetAffection);
@@ -549,7 +559,7 @@ function pickChoice(i) {
 
 /* ---------- time ---------- */
 // 時間を進めるのは、会話（メッセージと選択肢）をすべて読み終えてから
-let waitingAdvance = false;
+let waitingAdvance = false, keepLast = false;
 function advanceSlot() {
   if (waitingAdvance) return;
   waitingAdvance = true;
@@ -562,6 +572,7 @@ function tryAdvance() {
   doAdvance();
 }
 function doAdvance() {
+  keepLast = true; queueMicrotask(() => queueMicrotask(() => { keepLast = false; }));
   S.slot++;
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼') rollPackages();
@@ -584,7 +595,8 @@ function night() {
     st.stage = prevStage;
     if (ns > st.stage) {
       rep.events.push(`最近、${h.name}の体つきが変わってきた気がする…（${stageInfo(ns).name}）`);
-      if (!favorable(st)) addWary(h, C.waryStageUpLowTrust);
+      if (h.stageUpEffect) { st.wary = clamp(st.wary + (h.stageUpEffect.wary || 0), 0, 100); st.aff = clamp(st.aff + (h.stageUpEffect.aff || 0), 0, 100); }
+      else if (!favorable(st)) addWary(h, C.waryStageUpLowTrust);
     }
     st.stage = ns;
     if (S.building < 30) st.aff = clamp(st.aff - 1, 0, 100);
@@ -642,11 +654,13 @@ function titleHTML() {
 
 function door(r, bld = 'apartment') {
   if (bld === 'apartment' && r === '101') return `<button class="door self" data-act="self"><span class="no num">101</span><span class="win"></span><span class="nm">自室</span></button>`;
-  const h = BY_ROOM[bld + ':' + r];
-  if (!h) return `<button class="door empty" data-act="empty" data-room="${r}"><span class="no num">${r}</span><span class="win"></span><span class="nm muted">空室</span></button>`;
-  const st = S.h[h.id];
-  const badges = [S.packages[h.id] ? '荷物' : '', isMonthEnd() && !S.rentDone[h.id] ? '家賃' : '', !canVisit(st) ? '訪問不可' : ''].filter(Boolean);
-  return `<button class="door ${present(h) ? 'lit' : ''}" data-act="visit" data-id="${h.id}"><span class="no num">${r}</span><span class="win"></span><span class="nm">${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</span>${badges.map(b => `<span class="badge ${b === '訪問不可' ? 'off' : ''}">${b}</span>`).join('')}</button>`;
+  const hs = (BY_ROOM[bld + ':' + r] || []).filter(active);
+  if (!hs.length) return `<button class="door empty" data-act="empty" data-room="${r}"><span class="no num">${r}</span><span class="win"></span><span class="nm muted">空室</span></button>`;
+  const badgeOf = h => { const st = S.h[h.id]; return [S.packages[h.id] ? '荷物' : '', isMonthEnd() && !S.rentDone[h.id] ? '家賃' : '', !canVisit(st) ? '訪問不可' : ''].filter(Boolean); };
+  const badges = [...new Set(hs.flatMap(badgeOf))].filter(b => b !== '訪問不可' || hs.every(h => !canVisit(S.h[h.id])));
+  const names = hs.map(h => `${S.h[h.id].captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}`).join('<br>');
+  const act = hs.length > 1 ? `data-act="visitRoom" data-key="${bld}:${r}"` : `data-act="visit" data-id="${hs[0].id}"`;
+  return `<button class="door ${hs.some(present) ? 'lit' : ''}" ${act}><span class="no num">${r}</span><span class="win"></span><span class="nm">${names}</span>${badges.map(b => `<span class="badge ${b === '訪問不可' ? 'off' : ''}">${b}</span>`).join('')}</button>`;
 }
 function statRow(label, val, max, right, cls = '') {
   return `<div class="stat"><span>${label}</span><div class="bar ${cls}"><i style="width:${clamp(val / max * 100, 0, 100)}%"></i></div><span class="num">${right}</span></div>`;
@@ -703,8 +717,15 @@ function figure(h, st) {
     <rect x="${cx - 8}" y="70" width="16" height="24" fill="${c}" opacity=".8"/>
     <circle cx="${cx}" cy="52" r="${face}" fill="${c}"/></svg>`;
 }
+// 立ち絵のパス。ルート（姫華）で差し替え、公開版は軽い形式（window.IMAGE_EXT）に置き換える
+function imageOf(h, st) {
+  let src = h.images && h.images[st.stage];
+  if (h.routes && st.route && st.stage >= (h.routes.fromStage || 1) && h.routes[st.route] && h.routes[st.route][st.stage]) src = h.routes[st.route][st.stage];
+  if (src && window.IMAGE_EXT) src = src.replace(/\.png$/, window.IMAGE_EXT);
+  return src;
+}
 function portrait(h, st) {
-  const src = h.images && h.images[st.stage];
+  const src = imageOf(h, st);
   if (src) return `<div class="figbox"><img src="${esc(src)}" alt="${esc(h.name)}" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
     <div hidden style="width:100%;height:100%">${figure(h, st)}</div></div>`;
   return `<div class="figbox"><span class="tag">仮・段階${st.stage}</span>${figure(h, st)}</div>`;
@@ -815,6 +836,7 @@ function devHTML() {
       <button class="mini" data-act="dev" data-op="aff" data-id="${h.id}">親密+10</button>
       <button class="mini" data-act="dev" data-op="aff35" data-id="${h.id}">親密35に</button>
       <button class="mini" data-act="dev" data-op="pkg" data-id="${h.id}">荷物を預かる</button>
+      ${h.routes ? `<button class="mini" data-act="dev" data-op="route" data-id="${h.id}">ルート：${S.h[h.id].route === 'otaku' ? 'オタク' : 'ギャル'}</button>` : ''}
       <button class="mini" data-act="dev" data-op="kg" data-id="${h.id}">体重+3kg</button>
       <button class="mini" data-act="dev" data-op="kg10" data-id="${h.id}">+10kg</button>
       <button class="mini" data-act="dev" data-op="calm" data-id="${h.id}">警戒・満腹リセット</button></div>`).join('')}
@@ -875,11 +897,19 @@ const ACT = {
     if (d.op === 'monthEnd') { while (!isMonthEnd()) S.day++; S.slot = 3; S.rentDone = {}; closeModal(); render(); narr('月末の夜まで飛ばした。'); return; }
     if (d.op === 'pkg') { S.packages[d.id] = { day: S.day }; }
     if (d.op === 'showAll') S.devShowAll = !S.devShowAll;
+    if (d.op === 'route') { const st = S.h[d.id]; st.route = st.route === 'otaku' ? null : 'otaku'; }
     if (d.op === 'bankbook' && !S.bankbook) S.bankbook = 'ready';
     if (d.op === 'aff35') { addAff(H[d.id], 35 - S.h[d.id].aff); }
     render(); openModal('dev', devHTML());
   },
   pick(d) { pickChoice(+d.i); },
+  visitRoom(d) {
+    const hs = (BY_ROOM[d.key] || []).filter(active);
+    openModal('room', `<h3>${esc(d.key.split(':')[1])}号室</h3><div class="sub">誰に会う？</div>
+      <div class="acts">${hs.map(h => `<button class="btn wide" data-act="visitPick" data-id="${h.id}" ${present(h) ? '' : 'disabled'}>${esc(h.name)}<small>${present(h) ? '在室中' : '留守'}</small></button>`).join('')}</div>
+      <button class="btn close" data-act="close">やめる</button>`);
+  },
+  visitPick(d) { closeModal(); ACT.visit(d); },
   bankbook() {
     S.bankbook = 'found';
     narr('押し入れの奥、祖父の古い柳行李の底に、見たことのない通帳がしまわれていた。');
@@ -897,7 +927,7 @@ const ACT = {
     narr(`祖父の遺したお金で、隣の空き地にマンションを建てることにした。`);
     narr(`鉄筋3階建て、12部屋。名前は「${MAN.name || 'マンション'}」に決めた。`);
     narr('ひだまり荘の住人たちも、新しい建物を見上げて目を丸くしている。');
-    const newcomers = D.heroines.filter(h => bldOf(h) === 'mansion');
+    const newcomers = D.heroines.filter(h => bldOf(h) === 'mansion' && active(h));
     if (newcomers.length) narr(`さっそく入居者が決まった。${newcomers.map(h => h.name).join('、')}。新しい住人たちとの暮らしが始まる。`);
     else narr('入居者の募集を始めた。（マンションのヒロインはまだ登録されていない）');
     if (MAN.fundsLeft) narr(`残ったお金 ${yen(MAN.fundsLeft)} は、管理費として手元に置いた。`);
