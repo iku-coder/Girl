@@ -12,7 +12,8 @@
   --body:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans','Noto Sans JP',sans-serif;
   color-scheme:dark;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+button:focus:not(:focus-visible){outline:none}
 [hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--body);font-size:15px;line-height:1.6}
@@ -89,6 +90,20 @@ main{flex:1;min-height:0;overflow-y:auto;padding-block:14px}
 .chip.cap{border-color:var(--bad);color:var(--bad)}
 .desc{font-size:11px;color:var(--muted);line-height:1.5}
 .nameinput{width:100%;margin-top:10px;font:inherit;font-size:18px;padding:8px 10px;background:var(--ink);color:var(--paper);border:1px solid var(--line);border-radius:6px}
+/* 会話中の立ち絵（左）とステータス（右） */
+#stage{flex:1;min-height:0;position:relative;margin-block:8px;overflow:hidden}
+/* 立ち絵は高さいっぱいに。ステータスは右側に重ねる */
+#stage .fig{position:absolute;inset:0 38% 0 0}
+#stage .fig img{position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;max-width:none;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5))}
+#stage .fig svg{position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto}
+#stage .stats-card{position:absolute;right:0;top:50%;transform:translateY(-50%);width:44%;max-width:220px}
+#stage .fig svg{height:100%;max-width:100%}
+.stats-card{align-self:center;background:rgba(23,24,31,.86);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:5px;font-size:13px;min-width:0}
+.stats-card h3{margin:0;font-family:var(--display);font-weight:400;font-size:16px;line-height:1.3}
+.stats-card .eye{font-size:10px;letter-spacing:.15em;color:var(--lamp)}
+.stats-card .kv{display:flex;justify-content:space-between;gap:6px}
+.stats-card .kv span:first-child{color:var(--muted);white-space:nowrap}
+.stats-card .big{font-size:18px;font-weight:700}
 .changes{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--panel)}
 .changes summary{cursor:pointer;font-weight:700;display:flex;gap:8px;align-items:center}
 .changes ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px;font-size:13px}
@@ -158,6 +173,7 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <div id="app">
   <header id="hdr" hidden></header>
   <main id="main"></main>
+  <section id="stage" hidden aria-live="polite"></section>
   <div class="msg" id="msg" aria-live="polite"></div>
 </div>
 <div id="tap" hidden aria-label="次へ"></div>
@@ -369,8 +385,9 @@ function sinceLastText(st) {
 /* ---------- messages ---------- */
 // 「〇〇」は主人公の名前に置き換える（下の名前で呼ぶ段階のセリフ用）
 const nameFill = s => String(s).replace(/〇〇/g, (S && S.playerName) || C.defaultPlayerName || '悠');
+const BY_NAME = Object.fromEntries(D.heroines.map(h => [h.name, h.id]));
 function say(name, text, color) {
-  incoming.push({ name, text: nameFill(text), color });
+  incoming.push({ name, text: nameFill(text), color, hid: BY_NAME[name] });
   if (!flushPending) { flushPending = true; queueMicrotask(flush); }
 }
 const narr = t => say('', t);
@@ -393,16 +410,21 @@ function flush() {
 function drawMsg() {
   const box = $('#msg');
   let m = Q[0];
-  if (!m) { box.innerHTML = '<div class="txt narr">　</div>'; box.classList.remove('choosing'); $('#tap').hidden = true; $('#block').hidden = true; settled = true; if (waitingAdvance) queueMicrotask(tryAdvance); return; }
+  if (!m) { stageHid = null; drawStage(); box.innerHTML = '<div class="txt narr">　</div>'; box.classList.remove('choosing'); $('#tap').hidden = true; $('#block').hidden = true; settled = true; if (waitingAdvance) queueMicrotask(tryAdvance); return; }
   const ch = m.choice ? m : (Q[1] && Q[1].choice ? Q[1] : null);
   const line = m.choice ? null : m;
-  const more = !ch && Q.length > 1;
+  // ヒロインのセリフが出たら、そのヒロインの立ち絵を出す（会話が終わるまで出したまま）
+  const hidNow = (line && line.hid) || (ch && ch.choice.h && ch.choice.h.id) || null;
+  if (hidNow) stageHid = hidNow;
+  const stageOn = drawStage();
+  const closing = stageOn && !ch && Q.length === 1;   // 最後のセリフはタップで閉じる
+  const more = !ch && (Q.length > 1 || closing);
   let html = '';
   if (line) html += (line.name ? `<div class="who ${line.me ? 'me' : ''} ${line.tut ? 'tut' : ''}" style="color:${esc(line.color || '')}">${esc(line.name)}</div>` : '') +
     `<div class="txt ${line.name ? '' : 'narr'}">${esc(line.text)}</div>`;
   else if (ch.choice.prompt) html += `<div class="txt narr">${esc(ch.choice.prompt)}</div>`;
   if (ch) html += `<div class="choices">${ch.choice.list.map((c, i) => `<button class="pickbtn" data-act="pick" data-i="${i}">${esc(nameFill(c.text))}</button>`).join('')}</div>`;
-  if (more) html += '<div class="more">▼ タップで次へ</div>';
+  if (more) html += `<div class="more">${closing ? '▼ タップで閉じる' : '▼ タップで次へ'}</div>`;
   box.innerHTML = html;
   box.classList.toggle('choosing', !!ch);
   $('#tap').hidden = !more; $('#block').hidden = !ch;
@@ -411,7 +433,16 @@ function drawMsg() {
   if (settled && S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; updateBg(); }
   if (settled && waitingAdvance) queueMicrotask(tryAdvance);
 }
-$('#tap').addEventListener('click', () => { Q.shift(); drawMsg(); });
+$('#tap').addEventListener('click', () => { Q.shift(); if (!Q.length) stageHid = null; drawMsg(); });
+let stageHid = null;
+// 会話中の立ち絵画面。部屋の中で同じヒロインと話しているときは、部屋の画面の立ち絵を使う
+function drawStage() {
+  const h = stageHid && H[stageHid];
+  const on = !!(h && S && screen === 'game' && !(S.view.type === 'room' && S.view.id === h.id));
+  $('#stage').hidden = !on; $('#main').hidden = on;
+  if (on) { const st = S.h[h.id]; $('#stage').innerHTML = `<div class="fig">${stageFig(h, st)}</div>${statsCard(h, st)}`; }
+  return on;
+}
 // 「最近の様子」の開閉を覚えておく
 document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('changes') && S) S.openChanges = e.target.open; }, true);
 
@@ -794,6 +825,8 @@ const PROLOGUE = [
   ['両親の顔を、僕は知らない。', '物心ついたときから、家族はじいちゃんだけだった。'],
   ['口数は少ないけれど、いつも腹いっぱい食べさせてくれる人だった。', '「若いうちは、食べるのが先だ」。それが口癖だった。'],
   ['誰かに「おかえり」と迎えられること。', '温かいごはんを、誰かと一緒に食べること。', 'そういうものを、僕はじいちゃんからしか知らない。'],
+  ['それと、僕には少し変わったところがある。', '女の人を見ると、身長、体重、BMI、スリーサイズ、カップ数まで、数字がふっと頭に浮かんでくるのだ。', '理由は分からない。物心ついたときから、ずっとそうだった。'],
+  ['そして僕は、ふくよかな女の人に、どうしようもなく惹かれる。', 'やわらかくて、あたたかくて、よく食べてよく笑う人。', '……たぶん、顔も知らない母親の面影を、どこかで探しているんだと思う。'],
   ['葬式が終わったあと、弁護士さんが遺言書を読み上げた。', '「アパートを一棟。お孫さんの〇〇さんに」'],
   ['ひだまり荘。', '築五十年を超える、木造二階建てのボロアパート。', 'じいちゃんが、ひとりで守ってきた場所だ。'],
   ['家賃は相場の半分。', '住んでいるのは、どこかで行き場をなくした人たちばかりだという。'],
@@ -820,6 +853,7 @@ function beginGame() {
   tut('住人の部屋を回って、4月分の家賃を受け取ろう。地図のドアに「家賃」と付いている部屋が対象。');
   tut('窓に明かりがついている部屋は、住人が在室中。ドアをタップすると訪ねられる。');
   tut('留守の部屋は、時間をおいて出直そう。昼にいない人も、夜には帰ってくる。');
+  tut('住人と話すと、立ち絵の右に〇〇の「観察眼」に映った数字（身長・体重・BMI・スリーサイズ・カップ）が出る。');
 }
 function tutorialRent(h) {
   const st = S.h[h.id], amt = rentOf(h);
@@ -956,13 +990,29 @@ function portrait(h, st) {
     <div hidden style="width:100%;height:100%">${figure(h, st)}</div></div>`;
   return `<div class="figbox"><span class="tag">仮・段階${st.stage}</span>${figure(h, st)}</div>`;
 }
+// 主人公の特殊能力：女性の身長・体重・BMI・スリーサイズ・カップが見える（本人が隠していても見える）
 function bodyRows(h, st) {
-  const rv = weightReveal(h, st), m = measure(h, st.weight);
-  if (rv === 'hidden') return `<div class="row"><span>体重</span><span class="muted">？？kg（まだ教えてくれない）</span></div>`;
-  if (rv === 'refuse') return `<div class="row"><span>体重</span><span class="muted">？？kg（「量ってないし」と強がる）</span></div>`;
-  const note = rv === 'whisper' ? '<span class="muted">（小声で）</span>' : '';
-  return `<div class="row"><span>体重</span><span class="num">${note}${st.weight.toFixed(1)}kg（BMI ${bmi(h, st.weight).toFixed(1)}）</span></div>` +
-    (m ? `<div class="row"><span>スリーサイズ</span><span class="num">B${Math.round(m.bust)}(${cupOf(m)})・W${Math.round(m.waist)}・H${Math.round(m.hip)}</span></div>` : '');
+  const m = measure(h, st.weight);
+  return `<div class="row"><span>身長／体重</span><span class="num">${h.height}cm／${st.weight.toFixed(1)}kg</span></div>
+    <div class="row"><span>BMI</span><span class="num">${bmi(h, st.weight).toFixed(1)}</span></div>` +
+    (m ? `<div class="row"><span>スリーサイズ</span><span class="num">B${Math.round(m.bust)}・W${Math.round(m.waist)}・H${Math.round(m.hip)}</span></div>
+    <div class="row"><span>カップ</span><span class="num">${cupOf(m)}カップ</span></div>` : '');
+}
+function statsCard(h, st) {
+  const m = measure(h, st.weight), t = tierOf(st.aff);
+  return `<div class="stats-card"><div class="eye">観察眼</div><h3>${esc(h.name)}</h3>
+    <div class="kv"><span>身長</span><span class="num">${h.height}cm</span></div>
+    <div class="kv"><span>体重</span><span class="num big">${st.weight.toFixed(1)}kg</span></div>
+    <div class="kv"><span>BMI</span><span class="num">${bmi(h, st.weight).toFixed(1)}</span></div>
+    ${m ? `<div class="kv"><span>B／W／H</span><span class="num">${Math.round(m.bust)}／${Math.round(m.waist)}／${Math.round(m.hip)}</span></div>
+    <div class="kv"><span>カップ</span><span class="num big">${cupOf(m)}</span></div>` : ''}
+    <div class="kv"><span>体型</span><span>${st.stage} ${esc(stageInfo(st.stage).name)}</span></div>
+    <div class="kv"><span>親密度</span><span class="num">${Math.round(st.aff)} ${st.captured ? '<span class="heart">♥</span>' : esc(D.affectionTiers[t].name)}</span></div>
+  </div>`;
+}
+function stageFig(h, st) {
+  const src = imageOf(h, st);
+  return src ? `<img src="${esc(src)}" alt="${esc(h.name)}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div hidden style="height:100%">${figure(h, st)}</div>` : figure(h, st);
 }
 // 見た目以外の変化：最近の様子（生活）・服のサイズの移り変わり・周りの声
 function changesHTML(h, st) {
@@ -1076,7 +1126,7 @@ function devHTML() {
       <button class="mini" data-act="dev" data-op="night">夜まで飛ばす</button>
       <button class="mini" data-act="dev" data-op="monthEnd">月末へ</button>
       <button class="mini" data-act="dev" data-op="bankbook" ${S.bankbook ? 'disabled' : ''}>通帳イベントを起こす</button>
-      <button class="mini" data-act="dev" data-op="showAll">体重を常に表示：${S.devShowAll ? 'ON' : 'OFF'}</button></div>
+</div>
     ${D.heroines.map(h => `<div class="rowb"><b style="min-width:6em">${esc(h.name)}</b>
       <span class="muted">親密${Math.round(S.h[h.id].aff)}・${esc(C.bodyTypes && h.bodyType ? C.bodyTypes.frame[h.bodyType.frame].name + '×' + C.bodyTypes.fat[h.bodyType.fat].name : '体型タイプ未設定')}</span>
       <button class="mini" data-act="dev" data-op="aff" data-id="${h.id}">親密+10</button>
