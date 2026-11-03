@@ -16,7 +16,21 @@
 [hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--body);font-size:15px;line-height:1.6}
-#app{height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;
+/* 背景絵。画像がないときは時間帯の色と建物のシルエットで代わりに描く */
+#bg{position:fixed;inset:0;z-index:0;background-color:var(--ink);background-size:cover;background-position:center bottom;background-repeat:no-repeat}
+#bg::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,10,16,.5),rgba(10,10,16,.8))}
+#bg.bright::after{background:linear-gradient(to bottom,rgba(10,10,16,.05),rgba(10,10,16,.6))}
+#story{position:fixed;inset:0;z-index:40;background:#000;color:#e9e4da;display:flex;flex-direction:column;justify-content:center;cursor:pointer;
+  padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px));padding-block:40px}
+#story .lines{max-width:30em;margin:0 auto;display:grid;gap:14px;font-size:16px;line-height:1.9}
+#story .lines p{margin:0;animation:fadein .9s ease both}
+#story .lines p.memo{color:#d9b26a}
+#story .hint{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;font-size:12px;color:#8a857c}
+#story .skip{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px));background:none;border:1px solid #444;color:#aaa;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:12px}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.who.tut{color:var(--lamp)!important}
+.msg.tut{border-color:var(--lamp)}
+#app{position:relative;height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px}
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
@@ -81,7 +95,8 @@ main{flex:1;min-height:0;overflow-y:auto;padding-block:14px}
 .changes li b{color:var(--lamp);font-weight:500}
 .legend{font-size:12px;color:var(--muted);margin-top:8px}
 
-.stats{display:grid;gap:10px;margin-top:16px}
+.stats{display:grid;gap:10px;margin-top:16px;background:rgba(23,24,31,.82);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.legend{background:rgba(23,24,31,.7);border-radius:6px;padding:4px 8px}
 .stat{display:grid;grid-template-columns:7.5em 1fr auto;gap:10px;align-items:center;font-size:13px}
 .bar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
 .bar i{display:block;height:100%;background:var(--lamp)}
@@ -114,10 +129,11 @@ h2{font-family:var(--display);font-weight:400;font-size:19px;margin:0 0 2px;lett
 .back{margin-top:14px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 0;font-size:13px}
 
 /* title */
-.title{min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:18px;padding-block:24px}
+.title{min-height:100%;text-shadow:0 2px 12px rgba(0,0,0,.8);display:flex;flex-direction:column;justify-content:center;gap:18px;padding-block:24px}
 .kicker{font-size:12px;letter-spacing:.2em;color:var(--lamp)}
 .title h1{font-family:var(--display);font-weight:400;font-size:44px;line-height:1.1;margin:0;letter-spacing:.06em}
-.title p{margin:0;color:var(--muted);max-width:30em}
+.title p{margin:0;color:var(--paper);max-width:30em}
+.title .btn:disabled{opacity:.55;background:rgba(43,44,56,.85)}
 .stack{display:grid;gap:8px;max-width:320px}
 
 /* modal */
@@ -135,9 +151,10 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 .sheet .close{margin-top:14px;width:100%}
 .dev{display:grid;gap:6px}
 .dev .rowb{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-@media (prefers-reduced-motion:reduce){.more{animation:none}}
+@media (prefers-reduced-motion:reduce){.more{animation:none}#story .lines p{animation:none}}
 </style>
 
+<div id="bg" aria-hidden="true"></div>
 <div id="app">
   <header id="hdr" hidden></header>
   <main id="main"></main>
@@ -146,12 +163,14 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <div id="tap" hidden aria-label="次へ"></div>
 <div id="block" hidden></div>
 <div id="modal" hidden></div>
+<div id="story" hidden role="dialog" aria-label="プロローグ"></div>
 
 <script src="data.js"></script>
 <script src="heroines.js"></script>
 <script src="life.js"></script>
 <script src="scenes.js"></script>
 <script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });</script>
+<script src="scenes/_intro.js"></script>
 <script src="scenes/reina.js"></script>
 <script src="scenes/sayuri.js"></script>
 <script src="scenes/akane.js"></script>
@@ -379,7 +398,7 @@ function drawMsg() {
   const line = m.choice ? null : m;
   const more = !ch && Q.length > 1;
   let html = '';
-  if (line) html += (line.name ? `<div class="who ${line.me ? 'me' : ''}" style="color:${esc(line.color || '')}">${esc(line.name)}</div>` : '') +
+  if (line) html += (line.name ? `<div class="who ${line.me ? 'me' : ''} ${line.tut ? 'tut' : ''}" style="color:${esc(line.color || '')}">${esc(line.name)}</div>` : '') +
     `<div class="txt ${line.name ? '' : 'narr'}">${esc(line.text)}</div>`;
   else if (ch.choice.prompt) html += `<div class="txt narr">${esc(ch.choice.prompt)}</div>`;
   if (ch) html += `<div class="choices">${ch.choice.list.map((c, i) => `<button class="pickbtn" data-act="pick" data-i="${i}">${esc(nameFill(c.text))}</button>`).join('')}</div>`;
@@ -388,6 +407,8 @@ function drawMsg() {
   box.classList.toggle('choosing', !!ch);
   $('#tap').hidden = !more; $('#block').hidden = !ch;
   settled = !more && !ch;
+  box.classList.toggle('tut', !!(line && line.tut));
+  if (settled && S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; updateBg(); }
   if (settled && waitingAdvance) queueMicrotask(tryAdvance);
 }
 $('#tap').addEventListener('click', () => { Q.shift(); drawMsg(); });
@@ -474,6 +495,7 @@ function stretch(h) {
 /* ---------- 序盤のイベント ---------- */
 // 朝の掃除中の挨拶
 function morningGreet() {
+  sceneBg('entrance');
   let n = 0;
   // 住人が多いので、1回の掃除で会うのは最大 morningGreetMax 人まで（順番はランダム）
   HS().slice().sort(() => Math.random() - 0.5).forEach(h => {
@@ -496,6 +518,7 @@ function rollPackages() {
 function deliver(h) {
   const st = S.h[h.id], late = S.day - S.packages[h.id].day >= 2;
   delete S.packages[h.id];
+  sceneBg('hall');
   narr(`${h.name}に預かっていた荷物を渡した。`);
   const isLate = late && !favorable(st);
   addAff(h, isLate ? C.packageLateAffection : C.packageAffection);
@@ -507,6 +530,7 @@ function collectRent(h) {
   const st = S.h[h.id], t = tierOf(st.aff);
   const amt = Math.round(rentOf(h) * (S.building >= 50 ? 1 : 0.8));
   S.rentDone[h.id] = true; S.money += amt;
+  sceneBg('hall');
   narr(`${h.name}の部屋へ家賃を受け取りに行った。`);
   if (t === 0 && !st.captured) narr('（あまりいい顔はされなかった）');
   addAff(h, (C.rentAffection || [])[t] || 0);
@@ -638,8 +662,9 @@ function doAdvance() {
   keepLast = true; queueMicrotask(() => queueMicrotask(() => { keepLast = false; }));
   S.slot++;
   if (S.slot >= C.slots.length) { night(); return; }
-  if (slotName() === '昼') rollPackages();
+  if (slotName() === '昼' && !S.tutorial) rollPackages();
   render();
+  if (S.tutorial) tutorialProgress(false);
 }
 function night() {
   const rep = { day: S.day, rows: [], events: [] };
@@ -683,6 +708,10 @@ function night() {
   });
   if (S.building < 30) rep.events.push('建物の傷みがひどく、住人たちが不満そうだ。');
   S.building = clamp(S.building - C.buildingDecayPerDay, 0, 100);
+  if (S.tutorial) {
+    tutLeft().forEach(h => { S.money += rentOf(h); rep.events.push(`${h.name}の4月分の家賃は、郵便受けに封筒で入っていた。`); });
+    S.tutorial = null; S.tutorialDone = true; rep.events.push('（最初の家賃回収はこれで終わり。ここからは自由に過ごそう）');
+  }
   if (isMonthEnd()) S.rentDone = {};
   rep.date = dateText();
   S.day++; S.slot = 0; S.uniToday = false; S.view = { type: 'map' };
@@ -692,9 +721,140 @@ function night() {
   render();
 }
 
+/* ---------- 背景絵 ----------
+   ファイル：bg/<名前>.png（公開版は window.BG_EXT で軽い形式に）。名前は「背景絵_一覧とプロンプト」のとおり。
+   画像がない・読み込めないときは、時間帯の空の色と建物のシルエットで代わりに描く */
+const TIME_EN = { 朝: 'morning', 昼: 'noon', 夕: 'evening', 夜: 'night' };
+const SKY = {
+  morning: ['#a9d3ee', '#f3e6c8', '#e9c98f'], noon: ['#6fb3e8', '#cfe7f7', '#9dc07a'],
+  evening: ['#3b3a6b', '#f08a4b', '#7a4a3a'], night: ['#0d1430', '#26305a', '#1b1d2a']
+};
+function fallbackBg(kind, time) {
+  const [a, b, g] = SKY[time] || SKY.noon, lit = time === 'night' || time === 'evening';
+  if (kind === 'black') return 'linear-gradient(#000,#000)';
+  if (kind === 'int') {   // 室内：和室の壁と畳
+    const wall = time === 'night' ? '#4a3b2c' : '#cdb38a', mat = time === 'night' ? '#5c5a34' : '#b9b06c';
+    return `linear-gradient(to bottom, ${wall} 0 62%, #6b4a2e 62% 64%, ${mat} 64% 100%)`;
+  }
+  if (kind === 'shop') return `linear-gradient(to bottom, ${lit ? '#3a2a22' : '#e8d8bc'} 0 70%, #6b4a2e 70% 100%)`;
+  // 屋外：空＋木造2階建てのシルエット（窓は夜だけ灯る）
+  const win = lit ? '%23f0b257' : '%23324058', wall = time === 'night' ? '%233a2a24' : '%235a3a2c', roof = '%238a3a2a';
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 300' preserveAspectRatio='xMidYMax slice'>` +
+    `<rect x='90' y='120' width='420' height='180' fill='${wall}'/><polygon points='70,124 300,82 530,124' fill='${roof}'/>` +
+    `<rect x='90' y='205' width='420' height='8' fill='%238a5a3a'/>` +
+    [0, 1, 2, 3].map(i => `<rect x='${120 + i * 100}' y='145' width='46' height='34' fill='${win}'/><rect x='${120 + i * 100}' y='230' width='46' height='34' fill='${win}'/>`).join('') +
+    `<rect x='0' y='290' width='600' height='10' fill='%23333'/></svg>`;
+  return `url("data:image/svg+xml,${svg.replace(/#/g, '%23').replace(/</g, '%3C').replace(/>/g, '%3E').replace(/"/g, "'")}"), linear-gradient(to bottom, ${a}, ${b} 70%, ${g})`;
+}
+function bgOf() {
+  if (screen === 'title') return ['apartment_evening', 'ext', 'evening'];
+  const time = TIME_EN[slotName()] || 'noon';
+  if (S.sceneBg) return S.sceneBg;
+  const v = S.view, hn = time === 'morning' || time === 'noon' ? 'noon' : 'night';
+  if (v.type === 'self') return ['room101_' + time, 'int', time];
+  if (v.type === 'room') return [(bldOf(H[v.id]) === 'mansion' ? 'room_mansion_' : 'room_heroine_') + hn, 'int', time];
+  return [(S.mansionBuilt ? 'mansion_ext_' : 'apartment_') + time, 'ext', time];
+}
+// その場面だけの背景（会話を読み終えると元に戻る）
+function sceneBg(kind) {
+  const time = TIME_EN[slotName()] || 'noon';
+  const map = {
+    entrance: ['entrance_' + time, 'ext', time],
+    hall: ['hall_' + (time === 'morning' ? 'noon' : time), 'ext', time],
+    famires: ['eatout_famires_noon', 'shop', time],
+    teishoku: ['eatout_teishoku_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time],
+    izakaya: ['eatout_izakaya_night', 'shop', 'night'],
+    moveIn: ['apartment_noon', 'ext', 'noon']
+  };
+  S.sceneBg = map[kind] || null; updateBg();
+}
+let bgKey = '';
+function updateBg() {
+  const el = $('#bg'); if (!el) return;
+  const [name, kind, time] = bgOf(), key = name + kind + time;
+  el.classList.toggle('bright', screen === 'title' || !!(S && S.sceneBg));
+  if (key === bgKey) return; bgKey = key;
+  const ext = window.BG_EXT || '.png';
+  el.style.backgroundImage = `url("${C.bgDir || 'bg'}/${name}${ext}"), ${fallbackBg(kind, time)}`;
+}
+
+/* ---------- プロローグ（真っ暗な画面で、主人公の一人語り） ---------- */
+function showStory(pages, done) {
+  const el = $('#story'); let i = 0;
+  const draw = () => {
+    const pg = pages[i];
+    el.innerHTML = `<button class="skip" data-skip="1">スキップ</button><div class="lines">${pg.map(l => `<p class="${l.startsWith('「') && l.includes('メモ') ? 'memo' : ''}">${esc(nameFill(l))}</p>`).join('')}</div><div class="hint">タップで次へ</div>`;
+  };
+  const end = () => { el.hidden = true; el.onclick = null; done(); };
+  el.onclick = e => { if (e.target.dataset.skip) return end(); i++; if (i >= pages.length) end(); else draw(); };
+  el.hidden = false; draw();
+}
+const PROLOGUE = [
+  ['じいちゃんが死んだ。', '三月の終わり。近所の桜が、ちょうど咲きはじめたころだった。'],
+  ['両親の顔を、僕は知らない。', '物心ついたときから、家族はじいちゃんだけだった。'],
+  ['口数は少ないけれど、いつも腹いっぱい食べさせてくれる人だった。', '「若いうちは、食べるのが先だ」。それが口癖だった。'],
+  ['誰かに「おかえり」と迎えられること。', '温かいごはんを、誰かと一緒に食べること。', 'そういうものを、僕はじいちゃんからしか知らない。'],
+  ['葬式が終わったあと、弁護士さんが遺言書を読み上げた。', '「アパートを一棟。お孫さんの〇〇さんに」'],
+  ['ひだまり荘。', '築五十年を超える、木造二階建てのボロアパート。', 'じいちゃんが、ひとりで守ってきた場所だ。'],
+  ['家賃は相場の半分。', '住んでいるのは、どこかで行き場をなくした人たちばかりだという。'],
+  ['大学二年の春。', '管理人なんて、僕にできるんだろうか。'],
+  ['それでも。', 'じいちゃんが大事にしてきたものを、手放す気にはなれなかった。'],
+  ['四月一日。', '僕は、ひだまり荘の101号室に引っ越すことにした。']
+];
+const tut = text => { incoming.push({ name: 'チュートリアル', text: nameFill(text), color: 'var(--lamp)', tut: true }); if (!flushPending) { flushPending = true; queueMicrotask(flush); } };
+// 最初の家賃回収（チュートリアル）：ひだまり荘の住人を回って、4月分の家賃を受け取る
+const tutTargets = () => HS().filter(h => bldOf(h) === 'apartment');
+const tutLeft = () => tutTargets().filter(h => !S.tutorial.done[h.id]);
+function beginGame() {
+  screen = 'game'; S.slot = 1; S.view = { type: 'map' };
+  S.tutorial = { done: {} };
+  sceneBg('moveIn'); S.keepSceneBg = true; render();
+  narr('四月一日、昼。段ボール三箱と布団一組を抱えて、ひだまり荘の前に立った。');
+  narr('赤茶けたトタン屋根に、さびの浮いた外階段。写真で見たより、ずっとボロい。');
+  narr('101号室。じいちゃんが最後まで暮らしていた部屋だ。押し入れには、じいちゃんの荷物が箱のまま積んである。');
+  narr('机の上に、古い帳簿が一冊。表紙には、じいちゃんの字で「家賃台帳」と書いてある。');
+  narr('最後のページに、メモが挟まっていた。');
+  say('祖父のメモ', '「四月の家賃は、一日に集めに回ること。顔を見て、ちゃんと挨拶するんだぞ」', 'var(--muted)');
+  narr('……今日が、その一日だ。');
+  setTimeout(() => { S.keepSceneBg = false; }, 0);
+  tut('住人の部屋を回って、4月分の家賃を受け取ろう。地図のドアに「家賃」と付いている部屋が対象。');
+  tut('窓に明かりがついている部屋は、住人が在室中。ドアをタップすると訪ねられる。');
+  tut('留守の部屋は、時間をおいて出直そう。昼にいない人も、夜には帰ってくる。');
+}
+function tutorialRent(h) {
+  const st = S.h[h.id], amt = rentOf(h);
+  S.tutorial.done[h.id] = true; S.money += amt;
+  sceneBg('hall');
+  narr(`${h.room}号室のチャイムを鳴らした。`);
+  if (!tryScene(h, 'intro')) speak(h, 'rent');
+  narr(`4月分の家賃 ${yen(amt)} を受け取った。家賃台帳に、じいちゃんの字の続きで記帳した。`);
+  tutorialProgress(true);
+  render();
+}
+function tutorialProgress(afterVisit) {
+  if (!S.tutorial) return;
+  const left = tutLeft();
+  if (!left.length) return finishTutorial();
+  const here = left.filter(present);
+  if (here.length) { if (!afterVisit) tut(`${here.map(h => h.name).join('、')}が部屋にいるようだ。家賃を受け取りに行こう。`); return; }
+  const when = h => (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).filter(s => C.slots.indexOf(s) > S.slot);
+  tut(`残りは ${left.map(h => `${h.name}（${when(h).join('・') || '今日は戻らない'}）`).join('、')}。今は留守だ。`);
+  tut('101号室（自室）で「ひと休み」すると、時間が進む。帰ってくる時間に出直そう。');
+}
+function finishTutorial() {
+  S.tutorial = null; S.tutorialDone = true;
+  narr('（これで、ひだまり荘の住人全員から家賃を受け取った。みんなと、ひととおり顔を合わせたことになる）');
+  tut('チュートリアルはここまで。ここからは自由に過ごそう。1日は朝・昼・夕・夜の4コマで、行動するたびに時間が進む。');
+  tut('朝に自室から「敷地の掃除」をすると、出かける住人と話せることがある。留守の住人宛ての荷物を預かったら、在室のときに届けよう。');
+  tut('親密度が35になると、自分から部屋を訪ねられる。差し入れや外食、手料理で、少しずつ距離を縮めよう。');
+  tut('家賃の回収は毎月の月末。夜になったら、自室で寝て一日を終えよう。');
+}
+
 /* ---------- views ---------- */
 function render() {
   const main = $('#main');
+  updateBg();
+  $('#msg').hidden = screen === 'title';
   if (screen === 'title') { $('#hdr').hidden = true; main.innerHTML = titleHTML(); return; }
   $('#hdr').hidden = false;
   $('#hdr').innerHTML = `<div class="day num">${dateText()}<small>(${C.weekdays[dow()]})</small></div><div class="dow">${S.day}日目${isMonthEnd() ? ' <span class="chip warn">月末</span>' : ''}</div>
@@ -709,7 +869,7 @@ function titleHTML() {
   return `<div class="title">
     <div class="kicker">${esc(C.version)}</div>
     <h1>${esc(C.apartmentName)}</h1>
-    <p>祖父から受け継いだ、築五十年の木造アパート。管理人として、住人たちとの暮らしが始まる。</p>
+    <p>祖父が遺した、築五十年の木造アパート。<br>大学二年の春、僕はその管理人になった。</p>
     <div class="stack">
       <button class="btn primary" data-act="newgame">はじめから<small>101号室から始まる</small></button>
       <button class="btn" data-act="continue" ${has ? '' : 'disabled'}>つづきから<small>${has ? 'このブラウザのセーブ' : 'セーブはまだありません'}</small></button>
@@ -721,7 +881,8 @@ function door(r, bld = 'apartment') {
   if (bld === 'apartment' && r === '101') return `<button class="door self" data-act="self"><span class="no num">101</span><span class="win"></span><span class="nm">自室</span></button>`;
   const hs = (BY_ROOM[bld + ':' + r] || []).filter(active);
   if (!hs.length) return `<button class="door empty" data-act="empty" data-room="${r}"><span class="no num">${r}</span><span class="win"></span><span class="nm muted">空室</span></button>`;
-  const badgeOf = h => { const st = S.h[h.id]; return [S.packages[h.id] ? '荷物' : '', isMonthEnd() && !S.rentDone[h.id] ? '家賃' : '', !canVisit(st) ? '訪問不可' : ''].filter(Boolean); };
+  const badgeOf = h => { const st = S.h[h.id]; const tutRent = S.tutorial && bldOf(h) === 'apartment' && !S.tutorial.done[h.id];
+    return [S.packages[h.id] ? '荷物' : '', (isMonthEnd() && !S.rentDone[h.id]) || tutRent ? '家賃' : '', !canVisit(st) && !tutRent ? '訪問不可' : ''].filter(Boolean); };
   const badges = [...new Set(hs.flatMap(badgeOf))].filter(b => b !== '訪問不可' || hs.every(h => !canVisit(S.h[h.id])));
   const names = hs.map(h => `${S.h[h.id].captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}`).join('<br>');
   const act = hs.length > 1 ? `data-act="visitRoom" data-key="${bld}:${r}"` : `data-act="visit" data-id="${hs[0].id}"`;
@@ -940,11 +1101,8 @@ const ACT = {
   startGame() {
     const nm = ($('#pname') && $('#pname').value.trim()) || C.defaultPlayerName || '悠';
     closeModal();
-    S = newState(); S.playerName = nm; screen = 'game'; render();
-    narr('祖父が遺したのは、築五十年の木造アパートだった。');
-    narr('101号室に住みながら、管理人として住人の面倒を見ることになった。');
-    narr('とはいえ、住人たちとはまだ顔見知り程度。用もなく部屋を訪ねるわけにはいかない。');
-    narr('朝に敷地を掃除していれば、出かける住人と顔を合わせることもあるだろう。');
+    S = newState(); S.playerName = nm;
+    showStory(PROLOGUE, beginGame);
   },
   continue() { const d = loadSaved(); if (!d) return; S = d; normalize(); screen = 'game'; render(); narr('続きから再開した。'); },
   menu() { openModal('menu', menuHTML()); },
@@ -1036,6 +1194,15 @@ const ACT = {
   empty(d) { narr(`${d.room}号室。空き部屋だ。修繕すれば入居者を募集できそうだ。（未実装）`); },
   visit(d) {
     const h = H[d.id], st = S.h[h.id];
+    if (S.tutorial && bldOf(h) === 'apartment' && !S.tutorial.done[h.id]) {
+      if (!present(h)) {
+        narr(`${h.room}号室。チャイムを鳴らしたが、返事がない。…留守のようだ。`);
+        const when = (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).filter(s => C.slots.indexOf(s) > S.slot);
+        narr(when.length ? `家賃台帳のメモ：「${h.name}さん、${when.join('・')}なら部屋にいることが多い」。${when.includes('夜') ? '夜に' : 'あとで'}改めて来よう。` : '今日はもう戻らないらしい。明日、改めて来よう。');
+        return;
+      }
+      tutorialRent(h); return;
+    }
     if (!present(h)) { narr(`${h.room}号室。…留守のようだ。` + (canVisit(st) ? `（在室しやすい時間：${schedText(h)}）` : '')); return; }
     if (S.packages[h.id]) { deliver(h); return; }
     if (isMonthEnd() && !S.rentDone[h.id]) { collectRent(h); return; }
@@ -1105,6 +1272,7 @@ const ACT = {
     if (st.full + m.full > st.cap) { speak(h, 'full'); render(); return; }
     const kcal = Math.round(m.kcal * (d.kind === 'homeCook' ? 1 + C.cookBonus * S.cook : 1));
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;
+    if (d.kind === 'eatOut') sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
     st.habit = clamp(st.habit + m.habit, 0, 1);
     speak(h, d.kind); addAff(h, m.affection); stretch(h);
     narr(d.kind === 'eatOut' ? '（ふたりで食事をして、部屋まで送った）' : '（ふたりで食卓を囲んだ）');

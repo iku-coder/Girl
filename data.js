@@ -8,13 +8,14 @@ window.GAME_DATA = {
   /* ---- 全体設定・数値バランス ---- */
   config: {
     apartmentName: 'ひだまり荘',
+    bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v0.9',
+    version: '試作版 v1.0',
     slots: ['朝', '昼', '夕', '夜'],
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
 
-    startMoney: 20000,
+    startMoney: 3000,           // 手持ち（じいちゃんの財布に残っていた分）。最初の家賃回収で増える
     startBuilding: 60,          // 建物の状態（0〜100）
     buildingDecayPerDay: 2,
     manageGain: 15,
