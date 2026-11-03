@@ -35,6 +35,7 @@ window.GAME_DATA = {
     habitEatBonus: 0.5,         // 食習慣1.0で +50% 食べるようになる
     kcalPerKg: 7000,
     weightGainBoost: 1.2,       // ゲーム用の増量倍率（v0.9で2.5→1.0、v1.5で1.2。増えるときだけ掛かる。減るときは等倍）
+    fatConstitutionPerStage: 0.06, // デブ体質：段階が1上がるごとに増え方が+6%（段階15で×1.84）。v1.5
     habitDecayPerDay: 0.005,
     habitPerGift: 0.01,
 
