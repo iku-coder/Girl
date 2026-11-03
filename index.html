@@ -115,6 +115,10 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .stats-card .kv{display:flex;justify-content:space-between;gap:6px}
 .stats-card .kv span:first-child{color:var(--muted);white-space:nowrap}
 .stats-card .big{font-size:18px;font-weight:700}
+.roster{display:grid;margin-top:8px}
+.rrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.rname{display:grid;min-width:0}.rname b{font-weight:500}.rname small{font-size:11px}
+.rval{display:grid;text-align:right;line-height:1.2}.rval b{font-size:17px}.rval small{font-size:10px;color:var(--muted)}
 .changes{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--panel)}
 .changes summary{cursor:pointer;font-weight:700;display:flex;gap:8px;align-items:center}
 .changes ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px;font-size:13px}
@@ -400,7 +404,9 @@ function sinceLastText(st) {
 const nameFill = s => String(s).replace(/〇〇/g, (S && S.playerName) || C.defaultPlayerName || '悠');
 const BY_NAME = Object.fromEntries(D.heroines.map(h => [h.name, h.id]));
 function say(name, text, color) {
-  incoming.push({ name, text: nameFill(text), color, hid: BY_NAME[name] });
+  const hid = BY_NAME[name];
+  if (hid && S && S.h[hid]) S.h[hid].met = true;   // 一度でも言葉を交わしたら「会ったことがある」
+  incoming.push({ name, text: nameFill(text), color, hid });
   if (!flushPending) { flushPending = true; queueMicrotask(flush); }
 }
 const narr = t => say('', t);
@@ -489,7 +495,8 @@ function normalize() {
     else { const f = freshHeroine(h); for (const k in f) if (S.h[h.id][k] === undefined) S.h[h.id][k] = f[k]; }
   });
   if (S.view.type === 'room' && !H[S.view.id]) S.view = { type: 'map' };
-  D.heroines.forEach(h => { const st = S.h[h.id]; st.stage = stageOf(h, st.weight); if (st.seenStage > st.stage) st.seenStage = st.stage; });
+  D.heroines.forEach(h => { const st = S.h[h.id]; st.stage = stageOf(h, st.weight); if (st.seenStage > st.stage) st.seenStage = st.stage;
+    if (st.met == null) st.met = st.visits > 0 || st.aff !== (h.startAffection || 0); });
 }
 /* セーブ：このブラウザ（localStorage）と、claude.ai のアカウントごとの保存場所（db の data/users/<自分のid>/save。本人しか読めない）の両方に保存する。
    つづきからは、新しいほうを読む。claude.ai の外で開いたときはブラウザの保存だけ */
@@ -997,6 +1004,7 @@ function mapHTML() {
       ${statRow('大学の出席率', att, 100, att + '%', att < 60 ? 'low' : '')}
       <div class="stat"><span>預かり荷物</span><span class="muted" style="grid-column:2/4">${Object.keys(S.packages).length ? Object.keys(S.packages).map(id => esc(H[id].name) + '宛て').join('、') : 'なし'}</span></div>
       <div class="stat"><span>手持ちの差し入れ</span><span class="muted" style="grid-column:2/4">${invCount() ? Object.entries(S.inv).map(([k, n]) => `${esc(FOOD[k].name)}×${n}`).join('、') : 'なし'}</span></div>
+      <button class="btn wide" data-act="rosterOpen" style="margin-top:2px">住人一覧<small>会った住人の親密度を見る</small></button>
       <div class="stat"><span>攻略</span><span class="muted" style="grid-column:2/4">${HS().filter(h => S.h[h.id].captured).length}／${HS().length}人</span></div>
       <div class="stat"><span>料理の腕</span><span class="muted" style="grid-column:2/4">${S.cook}</span></div>
     </div>`;
@@ -1165,8 +1173,24 @@ function nightHTML(rep) {
     <div class="sub" style="margin-top:8px">自動セーブしました</div>
     <button class="btn primary close" data-act="close">朝になる</button>`;
 }
+// 住人一覧：会ったことのあるヒロインだけ、親密度つきで
+function rosterHTML() {
+  const list = D.heroines.filter(h => active(h) && S.h[h.id].met)
+    .sort((a, b) => (bldOf(a) === bldOf(b) ? a.room.localeCompare(b.room) : bldOf(a) === 'apartment' ? -1 : 1));
+  const rows = list.map(h => {
+    const st = S.h[h.id], t = tierOf(st.aff), pct = clamp(st.aff / C.captureAffection * 100, 0, 100);
+    return `<div class="rrow"><div class="rname"><b>${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</b>
+        <small class="muted">${bldOf(h) === 'mansion' ? esc(MAN.name || '') : esc(C.apartmentName)} ${h.room}号室</small></div>
+      <div class="rbar"><div class="bar"><i style="width:${pct}%"></i></div></div>
+      <div class="rval num"><b>${Math.round(st.aff)}</b><small>${st.captured ? '攻略済み' : esc(D.affectionTiers[t].name)}</small></div></div>`;
+  }).join('');
+  return `<h3>住人一覧</h3><div class="sub">会ったことのある住人の親密度（${list.length}人）。35で部屋を訪ねられ、70で好意、${C.captureAffection}で攻略。</div>
+    <div class="roster">${rows || '<p class="muted">まだ誰とも会っていない。</p>'}</div>
+    <button class="btn close" data-act="close">閉じる</button>`;
+}
 function menuHTML() {
   return `<h3>メニュー</h3><div class="acts" style="margin-top:0">
+    <button class="btn" data-act="rosterOpen">住人一覧<small>会った住人の親密度</small></button>
     <button class="btn" data-act="saveNow">セーブ<small>${cloudDoc ? 'アカウントに保存（自動セーブもあり）' : 'このブラウザに保存'}</small></button>
     <button class="btn" data-act="exportOpen">セーブコード<small>書き出して別の端末へ</small></button>
     <button class="btn" data-act="importOpen">コードを読み込む<small>貼り付けて再開</small></button>
@@ -1211,6 +1235,7 @@ const ACT = {
   },
   continue() { const d = loadSaved(); if (!d) return; S = d; normalize(); screen = 'game'; render(); narr('続きから再開した。'); },
   menu() { openModal('menu', menuHTML()); },
+  rosterOpen() { openModal('roster', rosterHTML()); },
   close() { closeModal(); },
   saveNow() { closeModal(); narr(save() ? (cloudDoc ? 'セーブしました。（アカウントに保存）' : 'セーブしました。') : 'このブラウザでは保存できませんでした。セーブコードを使ってください。'); },
   exportOpen() {
