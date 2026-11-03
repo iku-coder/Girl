@@ -123,6 +123,12 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .roomacts{margin-top:10px}
 .roominfo{margin-top:12px;background:rgba(23,24,31,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .roster{display:grid;margin-top:8px}
+.rrow.link{cursor:pointer}.rrow.link:active{background:var(--panel2)}
+.diary-chart{width:100%;height:120px;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.drow{padding:7px 0;border-bottom:1px solid var(--line);display:grid;gap:2px}
+.drow .l1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.drow .l1 b{font-size:15px}
+.drow .l2{font-size:12px;color:var(--muted)}.drow .up{color:#e0915a}.drow .down{color:#6fa8dc}
+.drow .chg{font-size:11px;padding:0 6px;border-radius:9px;background:var(--panel2)}
 .rrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .rname{display:grid;min-width:0}.rname b{font-weight:500}.rname small{font-size:11px}
 .rval{display:grid;text-align:right;line-height:1.2}.rval b{font-size:17px}.rval small{font-size:10px;color:var(--muted)}
@@ -973,6 +979,7 @@ function night() {
     st.wary = clamp(st.wary - C.waryDecayPerNight, 0, 100);
     Object.assign(st, { full: 0, intake: 0, gifts: 0, talked: false, ate: false });
     rep.rows.push({ id: h.id, from, to: st.weight });
+    diaryRecord(h, st, S.day);
     const rumor = rollReputation(h, st);
     if (rumor) rep.events.push(`うわさ：${h.name}は、${rumor}。`);
   });
@@ -1235,7 +1242,7 @@ function mapHTML() {
       ${statRow('大学の出席率', att, 100, att + '%', att < 60 ? 'low' : '')}
       <div class="stat"><span>預かり荷物</span><span class="muted" style="grid-column:2/4">${Object.keys(S.packages).length ? Object.keys(S.packages).map(id => esc(H[id].name) + '宛て').join('、') : 'なし'}</span></div>
       <div class="stat"><span>手持ちの差し入れ</span><span class="muted" style="grid-column:2/4">${invCount() ? Object.entries(S.inv).map(([k, n]) => `${esc(FOOD[k].name)}×${n}`).join('、') : 'なし'}</span></div>
-      <button class="btn wide" data-act="rosterOpen" style="margin-top:2px">住人一覧<small>会った住人の親密度を見る</small></button>
+      <button class="btn wide" data-act="rosterOpen" style="margin-top:2px">住人一覧・成長日記<small>会った住人の親密度と、毎日の体型の記録</small></button>
       <div class="stat"><span>攻略</span><span class="muted" style="grid-column:2/4">${HS().filter(h => S.h[h.id].captured).length}／${HS().length}人</span></div>
       <div class="stat"><span>料理の腕</span><span class="muted" style="grid-column:2/4">${S.cook}／${cookMax()}（レパートリー ${knownRecipes().length}品）</span></div>
     </div>`;
@@ -1415,18 +1422,59 @@ function rosterHTML() {
     .sort((a, b) => (bldOf(a) === bldOf(b) ? a.room.localeCompare(b.room) : bldOf(a) === 'apartment' ? -1 : 1));
   const rows = list.map(h => {
     const st = S.h[h.id], t = tierOf(st.aff), pct = clamp(st.aff / C.captureAffection * 100, 0, 100);
-    return `<div class="rrow"><div class="rname"><b>${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</b>
+    return `<div class="rrow link" data-act="diaryOpen" data-id="${h.id}"><div class="rname"><b>${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</b>
         <small class="muted">${bldOf(h) === 'mansion' ? esc(MAN.name || '') : esc(C.apartmentName)} ${h.room}号室</small></div>
       <div class="rbar"><div class="bar"><i style="width:${pct}%"></i></div></div>
       <div class="rval num"><b>${Math.round(st.aff)}</b><small>${st.captured ? '攻略済み' : esc(D.affectionTiers[t].name)}</small></div></div>`;
   }).join('');
-  return `<h3>住人一覧</h3><div class="sub">会ったことのある住人の親密度（${list.length}人）。35で部屋を訪ねられ、70で好意、${C.captureAffection}で攻略。</div>
+  return `<h3>住人一覧</h3><div class="sub">会ったことのある住人の親密度（${list.length}人）。35で部屋を訪ねられ、70で好意、${C.captureAffection}で攻略。名前をタップすると成長日記。</div>
     <div class="roster">${rows || '<p class="muted">まだ誰とも会っていない。</p>'}</div>
     <button class="btn close" data-act="close">閉じる</button>`;
 }
+/* ---------- 成長日記：毎晩の体重・BMI・スリーサイズ・カップ・服・段階 ----------
+   記録は [日, 体重, 服(上), 服(下), 段階]。BMI・サイズ・カップは体重から計算し直す */
+function diaryRecord(h, st, day) {
+  const d = st.diary || (st.diary = []);
+  const row = [day, Math.round(st.weight * 10) / 10, st.clothes ? st.clothes.top : -1, st.clothes ? st.clothes.bottom : -1, st.stage];
+  if (d.length && d[d.length - 1][0] === day) d[d.length - 1] = row; else d.push(row);
+}
+const mdText = day => { const d = dateOf(day); return `${d.getMonth() + 1}/${d.getDate()}<small>(${C.weekdays[(d.getDay() + 6) % 7]})</small>`; };
+function diaryChart(h, d) {
+  const pts = d.slice(-90); if (pts.length < 2) return '';
+  const ws = pts.map(r => r[1]), lo = Math.min(...ws), hi = Math.max(...ws), span = Math.max(hi - lo, 1);
+  const X = i => 8 + i * (304 / (pts.length - 1)), Y = w => 104 - (w - lo) / span * 88;
+  const line = pts.map((r, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(r[1]).toFixed(1)}`).join('');
+  const ups = pts.map((r, i) => (i && r[4] > pts[i - 1][4] ? `<circle cx="${X(i).toFixed(1)}" cy="${Y(r[1]).toFixed(1)}" r="3.5" fill="#e0915a"/>` : '')).join('');
+  return `<svg class="diary-chart" viewBox="0 0 320 120" preserveAspectRatio="none" role="img" aria-label="体重の推移">
+    <text x="6" y="12" font-size="10" fill="currentColor" opacity=".6">${hi.toFixed(1)}kg</text><text x="6" y="116" font-size="10" fill="currentColor" opacity=".6">${lo.toFixed(1)}kg</text>
+    <path d="${line}" fill="none" stroke="${h.color || '#e0915a'}" stroke-width="2.2" vector-effect="non-scaling-stroke"/>${ups}</svg>`;
+}
+function diaryHTML(h) {
+  const st = S.h[h.id], d = (st.diary || []).slice();
+  if (!d.length || d[d.length - 1][1] !== Math.round(st.weight * 10) / 10) d.push([S.day, Math.round(st.weight * 10) / 10, st.clothes ? st.clothes.top : -1, st.clothes ? st.clothes.bottom : -1, st.stage]);
+  const first = d[0][1];
+  const rows = d.map((r, i) => {
+    const [day, w, top, bot, sg] = r, prev = d[i - 1], m = measure(h, w);
+    const dw = prev ? Math.round((w - prev[1]) * 10) / 10 : 0;
+    const tags = [];
+    if (prev && sg > prev[4]) tags.push(`段階アップ`);
+    if (prev && (top > prev[2] || bot > prev[3])) tags.push('服のサイズアップ');
+    return `<div class="drow"><div class="l1"><span class="num">${mdText(day)}</span><b class="num">${w.toFixed(1)}kg</b>
+        ${dw ? `<span class="num ${dw > 0 ? 'up' : 'down'}">${dw > 0 ? '+' : ''}${dw.toFixed(1)}</span>` : ''}
+        <span class="num">BMI ${bmi(h, w).toFixed(1)}</span><span>段階${sg}「${esc((stageInfo(sg) || {}).name || '')}」</span>
+        ${tags.map(x => `<span class="chg">${x}</span>`).join('')}</div>
+      <div class="l2 num">${m ? `B${Math.round(m.bust)}・W${Math.round(m.waist)}・H${Math.round(m.hip)}　${cupOf(m)}カップ` : ''}${top >= 0 ? `　服 上${esc(CS[top].name)}／下${esc(CS[bot].name)}` : ''}</div></div>`;
+  }).reverse().join('');
+  const gain = Math.round((st.weight - first) * 10) / 10;
+  return `<h3>${esc(h.name)}の成長日記</h3>
+    <div class="sub">記録 ${d.length}日分・記録を始めてから <span class="num">${gain >= 0 ? '+' : ''}${gain.toFixed(1)}kg</span>（身長 ${h.height}cm）。毎晩の体重を記録している。</div>
+    ${diaryChart(h, d)}
+    <div class="roster">${rows}</div>
+    <div class="acts" style="margin-top:10px"><button class="btn" data-act="rosterOpen">住人一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`;
+}
 function menuHTML() {
   return `<h3>メニュー</h3><div class="acts" style="margin-top:0">
-    <button class="btn" data-act="rosterOpen">住人一覧<small>会った住人の親密度</small></button>
+    <button class="btn" data-act="rosterOpen">住人一覧・成長日記<small>会った住人の親密度と、毎日の体型の記録</small></button>
     <button class="btn" data-act="saveNow">セーブ<small>${cloudDoc ? 'アカウントに保存（自動セーブもあり）' : 'このブラウザに保存'}</small></button>
     <button class="btn" data-act="exportOpen">セーブコード<small>書き出して別の端末へ</small></button>
     <button class="btn" data-act="importOpen">コードを読み込む<small>貼り付けて再開</small></button>
@@ -1472,6 +1520,7 @@ const ACT = {
   continue() { const d = loadSaved(); if (!d) return; S = d; normalize(); screen = 'game'; render(); narr('続きから再開した。'); },
   menu() { openModal('menu', menuHTML()); },
   rosterOpen() { openModal('roster', rosterHTML()); },
+  diaryOpen(d) { openModal('diary', diaryHTML(H[d.id])); },
   close() { closeModal(); },
   saveNow() { closeModal(); narr(save() ? (cloudDoc ? 'セーブしました。（アカウントに保存）' : 'セーブしました。') : 'このブラウザでは保存できませんでした。セーブコードを使ってください。'); },
   exportOpen() {
