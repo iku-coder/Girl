@@ -34,7 +34,6 @@ window.GAME_DATA = {
     baseEatRatio: 0.97,         // 食習慣0のときの自炊量（維持カロリー比）
     habitEatBonus: 0.5,         // 食習慣1.0で +50% 食べるようになる
     kcalPerKg: 7000,
-    monthlyGainMax: 5.0,        // 1か月（暦の月）に増える体重の上限（kg）。v1.5
     weightGainBoost: 1.2,       // ゲーム用の増量倍率（v0.9で2.5→1.0、v1.5で1.2。増えるときだけ掛かる。減るときは等倍）
     habitDecayPerDay: 0.005,
     habitPerGift: 0.01,

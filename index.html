@@ -851,14 +851,8 @@ function night() {
     const maint = st.weight * C.maintPerKg;
     const own = maint * (C.baseEatRatio + C.habitEatBonus * st.habit);
     const raw = (own + st.intake - maint) / C.kcalPerKg;
-    let dW = raw > 0 ? raw * C.weightGainBoost : raw;
-    // 1か月に増える量の上限（monthlyGainMax）。暦の月ごとに数え直す
-    const mk = dateOf(S.day).getMonth();
-    if (!st.gm || st.gm.m !== mk) st.gm = { m: mk, kg: 0, hit: false };
-    if (dW > 0 && C.monthlyGainMax) {
-      dW = Math.min(dW, Math.max(0, C.monthlyGainMax - st.gm.kg)); st.gm.kg += dW;
-      if (!st.gm.hit && st.gm.kg >= C.monthlyGainMax - 1e-6) { st.gm.hit = true; rep.events.push(`${h.name}の体重は、今月はもうこれ以上増えないようだ（今月 +${C.monthlyGainMax.toFixed(1)}kg）`); }
-    }
+    // 増え方に計算上の上限は設けない（1日に食べられる量＝満腹ゲージが実質の上限）
+    const dW = raw > 0 ? raw * C.weightGainBoost : raw;
     const from = st.weight;
     st.weight = Math.min(maxW(h), Math.round((st.weight + dW) * 100) / 100);
     const ns = stageOf(h, st.weight);
