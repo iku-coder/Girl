@@ -1,7 +1,7 @@
 // 使い方: node tools/check_scenes.js scenes/akane.js [scenes/xxx.js ...]
 // 追加シーンファイル（window.addScenes('<id>', [...], {...})）の形式チェック
 const fs = require('fs'), path = require('path');
-const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night'];
+const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'town', 'campus', 'job', 'shopping'];
 const COND = ['tiers', 'minAff', 'maxAff', 'flag', 'noFlag', 'late', 'weekend', 'slot', 'captured', 'minStage', 'maxStage', 'minMoney', 'chance', 'minHabit'];
 const NODE = ['say', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'branch', 'choices', 'prompt', 'next'];
 const CHOICE = ['text', 'line', 'if', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'say', 'next', 'silent'];

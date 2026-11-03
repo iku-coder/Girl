@@ -285,6 +285,69 @@ window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = 
 <script src="scenes/eat/rin.js"></script>
 <script src="scenes/eat/karen.js"></script>
 <script src="scenes/eat/himeka.js"></script>
+<script src="scenes/out/town/hinata.js"></script>
+<script src="scenes/out/town/saya.js"></script>
+<script src="scenes/out/town/reina.js"></script>
+<script src="scenes/out/town/sayuri.js"></script>
+<script src="scenes/out/town/akane.js"></script>
+<script src="scenes/out/town/kotori.js"></script>
+<script src="scenes/out/town/yukino.js"></script>
+<script src="scenes/out/town/rio.js"></script>
+<script src="scenes/out/town/rei.js"></script>
+<script src="scenes/out/town/shiori.js"></script>
+<script src="scenes/out/town/aoi.js"></script>
+<script src="scenes/out/town/mariko.js"></script>
+<script src="scenes/out/town/sumire.js"></script>
+<script src="scenes/out/town/mio.js"></script>
+<script src="scenes/out/town/nagisa.js"></script>
+<script src="scenes/out/town/chihaya.js"></script>
+<script src="scenes/out/town/rin.js"></script>
+<script src="scenes/out/town/karen.js"></script>
+<script src="scenes/out/town/himeka.js"></script>
+<script src="scenes/out/shopping/hinata.js"></script>
+<script src="scenes/out/shopping/saya.js"></script>
+<script src="scenes/out/shopping/reina.js"></script>
+<script src="scenes/out/shopping/sayuri.js"></script>
+<script src="scenes/out/shopping/akane.js"></script>
+<script src="scenes/out/shopping/kotori.js"></script>
+<script src="scenes/out/shopping/yukino.js"></script>
+<script src="scenes/out/shopping/rio.js"></script>
+<script src="scenes/out/shopping/rei.js"></script>
+<script src="scenes/out/shopping/shiori.js"></script>
+<script src="scenes/out/shopping/aoi.js"></script>
+<script src="scenes/out/shopping/mariko.js"></script>
+<script src="scenes/out/shopping/sumire.js"></script>
+<script src="scenes/out/shopping/mio.js"></script>
+<script src="scenes/out/shopping/nagisa.js"></script>
+<script src="scenes/out/shopping/chihaya.js"></script>
+<script src="scenes/out/shopping/rin.js"></script>
+<script src="scenes/out/shopping/karen.js"></script>
+<script src="scenes/out/shopping/himeka.js"></script>
+<script src="scenes/out/job/hinata.js"></script>
+<script src="scenes/out/job/saya.js"></script>
+<script src="scenes/out/job/reina.js"></script>
+<script src="scenes/out/job/sayuri.js"></script>
+<script src="scenes/out/job/akane.js"></script>
+<script src="scenes/out/job/kotori.js"></script>
+<script src="scenes/out/job/yukino.js"></script>
+<script src="scenes/out/job/rio.js"></script>
+<script src="scenes/out/job/rei.js"></script>
+<script src="scenes/out/job/shiori.js"></script>
+<script src="scenes/out/job/aoi.js"></script>
+<script src="scenes/out/job/mariko.js"></script>
+<script src="scenes/out/job/sumire.js"></script>
+<script src="scenes/out/job/mio.js"></script>
+<script src="scenes/out/job/nagisa.js"></script>
+<script src="scenes/out/job/chihaya.js"></script>
+<script src="scenes/out/job/rin.js"></script>
+<script src="scenes/out/job/karen.js"></script>
+<script src="scenes/out/job/himeka.js"></script>
+<script src="scenes/out/campus/hinata.js"></script>
+<script src="scenes/out/campus/yukino.js"></script>
+<script src="scenes/out/campus/rio.js"></script>
+<script src="scenes/out/campus/mio.js"></script>
+<script src="scenes/out/campus/nagisa.js"></script>
+<script src="scenes/out/campus/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -452,6 +515,14 @@ function eatLevel(st) {
   return r;
 }
 function eatLabel(st) { const x = (C.eatLabels || [])[eatLevel(st)]; return x ? x.text : ''; }
+// 無尽蔵のときだけの特別なセリフ（greetMorning5 / greetEvening5 / visit5）。1つ＝セリフの配列
+function eatSpecial(h, key) {
+  const E = (window.EAT_LINES || {})[h.id], arr = E && E[key];
+  if (!arr || !arr.length) return false;
+  [].concat(pick(arr)).forEach(s => (/^（/.test(s) ? narr(s) : say(h.name, s, h.color)));
+  return true;
+}
+const SNACK_TEXT = ['', '', '', '時々', '毎日', '朝・昼・夕・夜'];
 // 食べる量の区分ごとのセリフ（scenes/eat/<id>.js）。kind: talk / gift / full
 function eatSay(h, kind) {
   const E = (window.EAT_LINES || {})[h.id]; const lv = eatLevel(S.h[h.id]);
@@ -667,6 +738,19 @@ function stretch(h) {
 
 /* ---------- 序盤のイベント ---------- */
 // 朝の掃除中の挨拶
+// 出先での遭遇・会話（scenes/out/<種類>/<id>.js）。kind: campus（大学）/ job（バイト先のファミレス）/ shopping（買い出し）/ town（街中）
+const ENC_BG = { campus: 'campus', job: 'famires', shopping: 'supermarket', town: 'town' };
+function encounter(kind) {
+  if (S.tutorial || Math.random() >= ((C.encounters || {})[kind] || 0)) return false;
+  let pool = HS().filter(h => S.h[h.id].met && pickScene(h, kind));
+  if (kind === 'campus') pool = pool.filter(h => (C.campusHeroines || []).includes(h.id));
+  if (kind === 'town') { const out = pool.filter(h => !present(h)); if (out.length) pool = out; }
+  if (!pool.length) return false;
+  const h = pick(pool);
+  sceneBg(ENC_BG[kind]);
+  addAff(h, (C.encounters || {}).affection || 1);
+  return tryScene(h, kind);
+}
 function morningGreet(kind = 'morning') {
   sceneBg('entrance');
   const eve = kind === 'evening';
@@ -677,7 +761,7 @@ function morningGreet(kind = 'morning') {
     n++;
     narr(eve ? (isWeekend() ? `${h.name}が買い物から帰ってきた。` : `${h.name}が帰ってきたところだった。`) : isWeekend() ? `${h.name}がゴミ出しに出てきた。` : `${h.name}が出かけるところだった。`);
     addAff(h, C.morningGreetAffection);
-    if (!tryScene(h, kind)) speak(h, eve ? 'greetEvening' : 'greetMorning');
+    if (!(eatLevel(S.h[h.id]) >= 5 && eatSpecial(h, eve ? 'greetEvening5' : 'greetMorning5')) && !tryScene(h, kind)) speak(h, eve ? 'greetEvening' : 'greetMorning');
   });
   if (!n) narr('誰とも会わなかった。');
 }
@@ -848,6 +932,10 @@ function night() {
   if (weekday) S.uni.total++;
   HS().forEach(h => {
     const st = S.h[h.id];
+    // 間食：大食いは時々、底なしは毎日、無尽蔵は朝昼夕夜（満腹ゲージとは別に、自分で食べる分）
+    const lvE = eatLevel(st), sn = C.snacks || {};
+    st.snacks = lvE >= 5 ? 4 : lvE === 4 ? 1 : lvE === 3 && Math.random() < (sn.chance3 || 0.3) ? 1 : 0;
+    st.intake += st.snacks * (sn.kcal || 400);
     const maint = st.weight * C.maintPerKg;
     const own = maint * (C.baseEatRatio + C.habitEatBonus * st.habit);
     const raw = (own + st.intake - maint) / C.kcalPerKg;
@@ -942,7 +1030,11 @@ function sceneBg(kind) {
     famires: ['eatout_famires_noon', 'shop', time],
     teishoku: ['eatout_teishoku_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time],
     izakaya: ['eatout_izakaya_night', 'shop', 'night'],
-    moveIn: ['apartment_noon', 'ext', 'noon']
+    moveIn: ['apartment_noon', 'ext', 'noon'],
+    // 出先（背景絵_一覧とプロンプト v1.1 の候補 D1・D2・D3・D5 の名前。絵が無いあいだは代わりの色で表示）
+    town: [time === 'noon' ? 'town_shotengai_noon' : 'town_station_' + time, 'ext', time],
+    campus: ['univ_campus_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'ext', time],
+    supermarket: ['town_conveni_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time]
   };
   S.sceneBg = map[kind] || null; updateBg();
 }
@@ -1251,6 +1343,7 @@ function roomHTML(h) {
       <div class="row"><span>満腹</span><span class="num">${st.full}／${st.cap}</span></div>
       <div class="bar full"><i style="width:${st.full / st.cap * 100}%"></i></div>
       <div class="row"><span>食べる量</span><span>${esc(eatLabel(st))}<span class="muted num">（食習慣${Math.round(st.habit * 100)}%）</span></span></div>
+      ${SNACK_TEXT[eatLevel(st)] ? `<div class="row"><span>間食</span><span>${SNACK_TEXT[eatLevel(st)]}</span></div>` : ''}
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         ${st.wary >= 30 ? `<span class="chip warn">警戒 ${Math.round(st.wary)}</span>` : ''}
         ${known.map(([tag, v]) => `<span class="chip ${v === 'like' ? 'like' : 'warn'}">${(st.acquired || {})[tag] ? '好きになった' : v === 'like' ? '好き' : '苦手'}：${C.tagNames[tag] || tag}</span>`).join('')}
@@ -1271,7 +1364,7 @@ function closeModal() {
   const kind = modalKind; modalKind = null;
   $('#modal').hidden = true; $('#modal').innerHTML = '';
   if (kind === 'cook' && S && S.invite) { const h = H[S.invite.id]; S.invite = null; narr(`（結局、${h.name}とお茶を飲んで、部屋まで送った）`); advanceSlot(); return; }
-  if (kind === 'shop' && shopBought) { shopBought = false; narr('買い出しから戻った。'); advanceSlot(); }
+  if (kind === 'shop' && shopBought) { shopBought = false; sceneBg('supermarket'); encounter('shopping') || encounter('town'); narr('買い出しから戻った。'); advanceSlot(); }
   else if (kind === 'night') { narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`); render(); }
 }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && modalKind !== 'night') closeModal(); });
@@ -1471,6 +1564,7 @@ const ACT = {
     const since = sinceLastText(st);
     if (since) narr(`（${since}）`);
     st.lastSeenW = st.weight;
+    if (eatLevel(st) >= 5) eatSpecial(h, 'visit5');   // 無尽蔵：訪ねるといつも何か食べている
     // 優先順：段階アップ ＞ 節目イベント（大きな節目 ＞ 服のサイズアップ ＞ そのほか） ＞ ふつうのあいさつ
     if (st.stage > st.seenStage) {
       const sl = stageReaction(h, st);
@@ -1556,9 +1650,17 @@ const ACT = {
   leave() { S.view = { type: 'map' }; advanceSlot(); },
   uni() {
     if (!S.uniToday) { S.uni.went++; S.uniToday = true; }
-    narr(pick(['講義を受けた。眠い。', 'ゼミに顔を出した。', '図書館でレポートを進めた。'])); advanceSlot();
+    sceneBg('campus');
+    narr(pick(['講義を受けた。眠い。', 'ゼミに顔を出した。', '図書館でレポートを進めた。']));
+    encounter('campus') || encounter('town');
+    advanceSlot();
   },
-  job() { S.money += C.partTimePay; narr(`バイトをした。${yen(C.partTimePay)} を受け取った。`); advanceSlot(); },
+  job() {
+    S.money += C.partTimePay; sceneBg('famires');
+    narr(`ファミレスでバイトをした。${yen(C.partTimePay)} を受け取った。`);
+    encounter('job') || encounter('town');
+    advanceSlot();
+  },
   manage() {
     S.building = clamp(S.building + C.manageGain, 0, 100);
     if (slotName() === '朝') { narr('敷地と玄関まわりを掃除した。'); morningGreet('morning'); advanceSlot(); return; }

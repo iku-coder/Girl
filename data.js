@@ -160,6 +160,11 @@ window.GAME_DATA = {
       { min: 0,   text: '小食' }, { min: 25, text: '人並み' }, { min: 50, text: 'よく食べる' },
       { min: 80,  text: '大食い' }, { min: 115, text: '底なし' }, { min: 160, text: '無尽蔵' }
     ],
+    // 間食（食べる量の区分）：大食い＝chance3 の確率で1回、底なし＝毎日1回、無尽蔵＝毎日4回（朝昼夕夜）。満腹ゲージとは別
+    snacks: { kcal: 400, chance3: 0.3 },
+    // 出先での遭遇・会話の確率（1回の行動で1つまで）。専用の場所（大学・バイト・買い出し）を先に判定し、外れたら街中
+    encounters: { campus: 0.35, job: 0.3, shopping: 0.3, town: 0.15, affection: 2 },
+    campusHeroines: ['hinata', 'yukino', 'rio', 'mio', 'nagisa', 'himeka'],   // 主人公と同じ大学（葵は女子大なので除く）
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 

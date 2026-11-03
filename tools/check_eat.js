@@ -17,6 +17,10 @@ for (const f of process.argv.slice(2)) {
       });
     });
   }
+  for (const k of ['greetMorning5', 'greetEvening5', 'visit5']) if (o[k] != null) {
+    if (!Array.isArray(o[k]) || o[k].length < 4) err(f, `${k} は4つ以上`);
+    else o[k].forEach(x => { if (!Array.isArray(x) || x.some(s => typeof s !== 'string' || !s.trim())) err(f, `${k} の各要素はセリフの配列`); });
+  } else if (process.env.NEED5) err(f, `${k} がない`);
   console.log(`OK? ${f} id=${ids[0]}`);
 }
 console.log(bad ? `エラー ${bad} 件` : 'エラーなし'); process.exit(bad ? 1 : 0);
