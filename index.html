@@ -921,6 +921,7 @@ function tryAdvance() {
 function doAdvance() {
   keepLast = true; queueMicrotask(() => queueMicrotask(() => { keepLast = false; }));
   S.slot++;
+  dropStaleFigure();   // 時間が進んだら、前の会話の立ち絵は下げる
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼' && !S.tutorial) rollPackages();
   save();   // 時間が進むたびに自動セーブ
@@ -942,7 +943,8 @@ function night() {
     const raw = (own + st.intake - maint) / C.kcalPerKg;
     // 増え方に計算上の上限は設けない（1日に食べられる量＝満腹ゲージが実質の上限）
     // デブ体質：太るほど（段階が上がるほど）太りやすくなる。増えるときだけ掛かる
-    const dW = raw > 0 ? raw * C.weightGainBoost * fatMul(st) : raw;
+    // 痩せるときは体質の倍率で割る（デブ体質ほど痩せにくい）
+    const dW = raw > 0 ? raw * C.weightGainBoost * fatMul(st) : raw / fatMul(st);
     const from = st.weight;
     st.weight = Math.min(maxW(h), Math.round((st.weight + dW) * 100) / 100);
     const ns = stageOf(h, st.weight);
@@ -1177,6 +1179,15 @@ function render() {
     <div class="money num">${yen(S.money)}</div><button class="icon" data-act="menu" aria-label="メニュー">≡</button>`;
   const v = S.view;
   main.innerHTML = v.type === 'self' ? selfHTML() : v.type === 'room' ? roomHTML(H[v.id]) : mapHTML();
+  // 画面が切り替わったら：いちばん上（立ち絵が見える位置）から表示し、前の画面の立ち絵は消す
+  const vk = v.type + ':' + (v.id || '');
+  if (vk !== lastViewKey) { lastViewKey = vk; main.scrollTop = 0; dropStaleFigure(); }
+}
+let lastViewKey = '';
+// 前の場面のセリフの立ち絵を下げる（文字はそのまま残す）
+function dropStaleFigure() {
+  if (Q[0] && !Q[0].choice && Q[0].hid) Q[0] = Object.assign({}, Q[0], { hid: null });
+  if (stageHid) { stageHid = null; drawStage(); }
 }
 
 function titleHTML() {
