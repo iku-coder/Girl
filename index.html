@@ -1188,8 +1188,17 @@ function pickScene(h, type, ctx = {}) {
   const seen = sc => S.seen[sc.id] || 0, min = Math.min(...list.map(seen));
   return pick(list.filter(sc => seen(sc) === min));
 }
+// 場面の場所に合わせて背景を変える（シーンの bg、または出先で本文に「河川敷・公園」「学食」が出てくるとき）
+const sceneText = sc => JSON.stringify(sc.nodes || {}).slice(0, 600);
+function scenePlace(sc) {
+  if (sc.bg) { sceneBg(sc.bg); return; }
+  const name = (S.sceneBg || [''])[0] || '';
+  if (/^town_/.test(name) && /河川敷|公園|土手/.test(sceneText(sc))) sceneBg('park');
+  else if (/^univ_/.test(name) && /学食/.test(sceneText(sc))) sceneBg('cafeteria');
+}
 function playScene(h, sc, ctx = {}) {
   S.seen[sc.id] = (S.seen[sc.id] || 0) + 1;
+  if (S.sceneBg || sc.bg) scenePlace(sc);
   if (sc.once) { S.evDone.push(sc.id); if (S.h[h.id]) S.h[h.id].capBonusDay = S.day; }   // 一度きりの話の日は上限+3
   inScene = true;
   const cast = sc.cast ? [h.id].concat(sc.cast.filter(id => id !== h.id && H[id])) : curCast;
@@ -1505,11 +1514,18 @@ function sceneBg(kind) {
     town: [time === 'noon' ? 'town_shotengai_noon' : 'town_station_' + time, 'ext', time],
     campus: ['univ_campus_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'ext', time],
     supermarket: ['town_conveni_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time],
-    sento: ['town_sento_' + (time === 'night' ? 'night' : 'evening'), 'ext', time],
+    sento: ['town_sento_' + (time === 'night' ? 'night' : time === 'evening' ? 'evening' : 'noon'), 'ext', time],   // 朝・昼は休日の朝風呂の絵
     super: ['town_super_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'shop', time],
     shotengai: ['town_shotengai_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'ext', time],
     depa: ['town_depa_noon', 'shop', time],
-    shrine: ['shrine_' + (time === 'night' ? 'evening' : time === 'evening' ? 'evening' : 'noon'), 'ext', time]
+    shrine: mmdd() >= '01-01' && mmdd() <= '01-07' ? ['shrine_shogatsu_noon', 'ext', time]                                   // 松の内は初詣の飾り
+      : mmdd() >= '07-27' && mmdd() <= '07-29' && (time === 'evening' || time === 'night') ? ['shrine_matsuri_night', 'ext', time]   // 夏祭りの夜
+      : ['shrine_' + (time === 'night' ? 'evening' : time === 'evening' ? 'evening' : 'noon'), 'ext', time],
+    // v2.2 追加の背景絵
+    shogatsu: ['shrine_shogatsu_noon', 'ext', time],                                                         // 初詣（門松・屋台）
+    matsuri: [time === 'evening' || time === 'night' ? 'shrine_matsuri_night' : 'shrine_noon', 'ext', time],   // 夏祭り（提灯・屋台・神楽の舞台）
+    park: ['town_park_' + (time === 'morning' || time === 'noon' ? 'noon' : 'evening'), 'ext', time],         // 河川敷・公園
+    cafeteria: ['univ_cafeteria_noon', 'shop', time]                                                         // 大学の学食
   };
   S.sceneBg = map[kind] || null; S.sceneBgStale = false; updateBg();
 }
@@ -3109,7 +3125,8 @@ const ACT = {
   uni() {
     if (!S.uniToday) { S.uni.went++; S.uniToday = true; (S.sem = S.sem || { went: 0, total: 0 }).went++; }
     sceneBg('campus');
-    narr(pick(['講義を受けた。眠い。', 'ゼミに顔を出した。', '図書館でレポートを進めた。']));
+    if (slotName() === '昼' && Math.random() < 0.3) { sceneBg('cafeteria'); narr(pick(['学食で、日替わり定食を食べた。', '学食の大盛りカレーを食べてから、午後の講義へ。'])); }
+    else narr(pick(['講義を受けた。眠い。', 'ゼミに顔を出した。', '図書館でレポートを進めた。']));
     encounter('campus') || encounter('town');
     advanceSlot();
   },
