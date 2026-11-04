@@ -914,11 +914,13 @@ const ENC_BG = { campus: 'campus', job: 'famires', shopping: 'supermarket', town
 function encounter(kind) {
   if (S.tutorial || Math.random() >= ((C.encounters || {})[kind] || 0) * (kind === 'town' && isRainy() ? 0.5 : 1)) return false;
   let pool = HS().filter(h => S.h[h.id].met && pickScene(h, kind));
-  if (kind === 'campus') pool = pool.filter(h => (C.campusHeroines || []).includes(h.id));
+  if (kind === 'campus') pool = S.graduated ? [] : pool.filter(h => (C.campusHeroines || []).includes(h.id));
   if (kind === 'town') { const out = pool.filter(h => !present(h)); if (out.length) pool = out; }
   if (!pool.length) return false;
   const h = pick(pool);
   sceneBg(ENC_BG[kind]);
+  if (kind === 'town') { const st = S.h[h.id], sg = [13, 9, 5].find(x => st.stage >= x && !flagsOf(h).includes('reunion_' + x));   // E6 昔の知り合いとの再会
+    if (sg) { flagsOf(h).push('reunion_' + sg); addAff(h, (C.encounters || {}).affection || 1); return tryScene(h, 'reunion'); } }
   addAff(h, (C.encounters || {}).affection || 1);
   return tryScene(h, kind);
 }
@@ -1134,6 +1136,7 @@ function doAdvance() {
   clearSceneBg();      // 出先の背景も元に戻す（自室・地図の背景へ）
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼' && !S.tutorial) rollPackages();
+  if (slotName() === '夜' && mmdd() === myBday() && S.myBdayDone !== yearOf()) { if (gatherMyBirthday()) { save(); render(); return; } }
   // 深夜になったら自室へ。寝るか料理をすると、その日の集計へ
   if (slotName() === '深夜') { S.view = { type: 'self' }; S.sceneBg = null; narr('（夜も更けた。101号室に戻った。…寝るか、台所に立つか）'); }
   save();   // 時間が進むたびに自動セーブ
@@ -1143,9 +1146,14 @@ function doAdvance() {
 function night(silent) {
   const rep = { day: S.day, rows: [], events: [] };
   const weekday = dow() < 5;
-  if (weekday) S.uni.total++;
+  if (weekday && !S.graduated) { S.uni.total++; (S.sem = S.sem || { went: 0, total: 0 }).total++; }
   HS().forEach(h => {
     const st = S.h[h.id];
+    // E4 帰省（実家のごはん）・E5 繁忙期の間食
+    if (st.away && st.away.home && S.day <= st.away.until) st.intake += C.homecoming.dailyKcal;
+    if (st.away && st.away.home && S.day >= st.away.until) { st.away = null; st.homeBack = true; }
+    if (busyNow(h)) st.intake += (C.snacks || {}).kcal || 400;
+    { const b = busyNow(h); if (b && mmdd() === b[1] && st.met) { st.examEnd = S.day; } }
     // E3 風邪
     if (st.sick && S.day >= st.sick.until) { st.sick = null; st.recover = C.sick.recoverDays; st.recoverNew = true; st.cap = Math.min(C.maxCapacity, Math.round(st.cap * 1.1)); rep.events.push(`${h.name}の風邪が治ったらしい。…食欲が、ものすごく戻っている。`); }
     else if (!st.sick && st.met && Math.random() < C.sick.chance && S.day - (st.lastSick == null ? -999 : st.lastSick) >= C.sick.cooldown) { st.sick = { until: S.day + C.sick.days, cared: 0 }; st.lastSick = S.day; rep.events.push(`${h.name}が、風邪をひいて寝込んでいるらしい。`); (S.autoBreak = S.autoBreak || []).push(`${shortName(h)}の風邪`); }
@@ -1254,9 +1262,29 @@ function night(silent) {
       } } }
   // S4 依頼：期限切れ
   Object.entries(S.req || {}).forEach(([id, r]) => { if (S.day >= r.until) { delete S.req[id]; addAff(H[id], -2); rep.events.push(`${H[id].name}の依頼（${C.requests.types.find(x => x.id === r.type).name}）の期限が切れてしまった。`); } });
+  // S8 学期末の判定
+  if ((C.credits.judge || []).includes(mmdd())) creditJudge(rep);
+  // S13 1年間すべて期限内なら（3/31）
+  if (mmdd() === '03-31') { const ps = (S.taxPaid || []).filter(x => yearOf(x.day) === yearOf()); if (ps.length >= 4 && ps.every(x => !x.late)) S.taxYearOk = true; S.yearResult = gradeJudge(); if (S.yearResult) rep.events.push(S.yearResult); }
+  // S9 実績
+  achvCheck().forEach(a => rep.events.push(`実績「${a.name}」を達成した！`));
   rep.date = dateText();
   S.day++; S.slot = 0;
   rollWeather();
+  // E2 台風の知らせ（その日の夜に停電）
+  { const T = C.typhoon, mo = dateOf(S.day).getMonth() + 1, yk = 'ty:' + yearOf();
+    if (T && T.months.includes(mo) && ((S.typhoonCount || {})[yk] || 0) < T.perYear && Math.random() < T.chance) { S.typhoonDay = S.day; (S.typhoonCount = S.typhoonCount || {})[yk] = ((S.typhoonCount || {})[yk] || 0) + 1; (S.autoBreak = S.autoBreak || []).push('台風'); } }
+  // E4 帰省の始まり
+  { const p = homePeriod(); if (p && mmdd() === p.from) HS().forEach(h => { const st = S.h[h.id];
+      if (!st.met || (C.homecoming.noHome || []).includes(h.id) || h.noHome || (st.captured && Math.random() < C.homecoming.capturedStay)) return;
+      let end = S.day; while (inRange(mmdd(end + 1), p.from, p.to)) end++;
+      st.away = { until: end, home: true, text: `${h.room}号室。…ドアに「${p.name}は実家に帰っています」の貼り紙。` }; }); }
+  // E12 家族の上京（休日の朝、段階7以上、年1回まで）
+  if (isWeekend()) HS().forEach(h => { const st = S.h[h.id], F = C.family;
+    if (st.met && st.stage >= F.minStage && !(C.homecoming.noHome || []).includes(h.id) && st.familyYear !== yearOf() && !(st.away && S.day <= st.away.until) && Math.random() < F.chance) { st.familyYear = yearOf(); st.family = { day: S.day, step: 0 }; (S.autoBreak = S.autoBreak || []).push(`${shortName(h)}の家族が上京`); } });
+  // E9 主人公の誕生日・E5 試験明け
+  if (mmdd() === myBday() && S.myBdayDone !== yearOf()) (S.autoBreak = S.autoBreak || []).push('あなたの誕生日');
+  if (HS().some(h => S.h[h.id].examEnd === S.day - 1)) (S.autoBreak = S.autoBreak || []).push('試験・繁忙期の終わり');
   S.morningNotes = taxNotices();   // 納付書・督促状（朝に知らせる）
   // S4 依頼：新しい依頼
   HS().forEach(h => { const st = S.h[h.id]; if (!st.met || st.aff < 35 || (S.req || {})[h.id] || Math.random() >= C.requests.chance) return;
@@ -1479,6 +1507,7 @@ function titleHTML() {
   return `<div class="title">
     <div class="kicker">${esc(C.version)}</div>
     <h1>${esc(C.apartmentName)}</h1>
+    ${sv && sv.titleId ? `<div class="sub">称号「${esc(((D.achievements || []).find(a => a.id === sv.titleId) || {}).name || '')}」・${esc(((C.difficulty || {})[sv.diff || 'normal'] || {}).label || '')}</div>` : ''}
     <p>祖父が遺した、築五十年の木造アパート。<br>大学二年の春、僕はその管理人になった。</p>
     <div class="stack">
       <button class="btn primary" data-act="newgame">はじめから<small>101号室から始まる</small></button>
@@ -1526,8 +1555,10 @@ function mapHTML() {
 
 function selfHTML() {
   const s = slotName();
+  if (typhoonToday() && s === '夜') return `<h2>101号室</h2><div class="sub">外は嵐。ラジオが、台風の接近を伝えている。…電気が、ちかちかし始めた。</div>
+    <div class="acts"><button class="btn primary wide" data-act="typhoon">住人を101号室に集める<small>停電の夜。冷蔵庫のものを、みんなで食べきる</small></button></div>`;
   const acts = [
-    { act: 'uni', label: '大学へ行く', note: '平日の朝・昼', ok: !isWeekend() && (s === '朝' || s === '昼') },
+    ...(S.graduated ? [] : [{ act: 'uni', label: '大学へ行く', note: '平日の朝・昼', ok: !isWeekend() && (s === '朝' || s === '昼') }]),
     { act: 'job', label: 'バイトに行く', note: `昼・夕／${yen(C.partTimePay)}`, ok: s === '昼' || s === '夕' },
     { act: 'manage', label: s === '朝' || s === '夕' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `出かける住人と会えるかも／状態 +${C.manageGain}` : s === '夕' ? `帰ってくる住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: s !== '深夜' },
     { act: 'shop', label: '買い出し', note: '差し入れを買う（夜・深夜以外）', ok: s !== '夜' && s !== '深夜' },
@@ -1537,6 +1568,7 @@ function selfHTML() {
     { act: 'partyOpen', label: '食事会を開く', note: hasFac('nabe') ? `夕・夜／${yen(C.party.price)}／最大${partyMax()}人` : '設備の「大鍋とカセットコンロ」が必要', ok: (s === '夕' || s === '夜') && hasFac('nabe') && S.money >= C.party.price && partyCands().length > 0 },
     ...(S.h.chihaya && S.h.chihaya.met && active(H.chihaya) ? [{ act: 'offerOpen', label: '神社にお供えする', note: '昼・夕／千早が「おさがり」としていただく', ok: (s === '昼' || s === '夕') && invCount() > 0 && SPX().offerDay !== S.day }] : []),
     ...(S.tax && !S.tax.paid ? [{ act: 'payTax', label: '税金を払う', note: `昼・夕／固定資産税 ${yen(S.tax.amount + taxLate())}${taxLate() ? '（延滞金込み）' : ''}・期限 ${dateText(S.tax.due)}`, ok: (s === '昼' || s === '夕') && S.money >= S.tax.amount + taxLate(), primary: S.day > S.tax.due }] : []),
+    { act: 'sentoOpen', label: '銭湯に誘う', note: `夕・夜／${yen(C.sento.price)}・親密度${C.sento.minAffection}から`, ok: (s === '夕' || s === '夜' || (s === '朝' && isWeekend())) && S.sentoDay !== S.day && HS().some(h => S.h[h.id].met && present(h) && S.h[h.id].aff >= C.sento.minAffection) },
     { act: 'autoOpen', label: 'いつもどおり過ごす', note: '朝／1日・3日・7日をまとめて進める', ok: s === '朝' && !S.tutorial },
     { act: 'facOpen', label: '設備・修繕', note: `冷蔵庫・こたつ・修繕など（${(C.facilities || []).filter(f => hasFac(f.id)).length}/${(C.facilities || []).length}）`, ok: true },
     ...bdayToday().map(h => ({ act: 'bday', id: h.id, label: `${shortName(h)}の誕生日を祝う`, note: `ケーキを持って部屋へ／${yen(C.birthday.price)}`, ok: S.money >= C.birthday.price, primary: true })),
@@ -1661,6 +1693,7 @@ function roomHTML(h) {
       ${h.id === 'himeka' ? `<div class="row"><span>${himekaFriends(st).label}</span><span class="num">${himekaFriends(st).n}人${st.order ? `・命令：${esc((FOOD[st.order] || {}).name || '')}` : ''}</span></div>` : ''}
       ${h.id === 'sumire' && st.focus ? `<div class="row"><span>デザイン</span><span>没頭中（差し入れはため込む：${Math.round(st.stash || 0)}kcal）</span></div>` : ''}
       ${h.id === 'rin' ? `<div class="row"><span>勤務</span><span>${['日勤', '夜勤', '明け・非番', '休み'][rinShift()]}</span></div>` : ''}
+      ${busyNow(h) ? `<div class="row"><span>${busyType(h) === 'student' ? '試験中' : '繁忙期'}</span><span>間食が増えている</span></div>` : ''}
       ${st.keep ? `<div class="row"><span>体型</span><span>維持中（段階${st.target}）</span></div>` : ''}
       ${st.diet ? `<div class="row"><span>ダイエット</span><span>宣言中（あと${Math.max(1, st.diet.until - S.day)}日）</span></div>` : st.rebound ? `<div class="row"><span>ダイエット</span><span>リバウンド中</span></div>` : ''}
       <div class="row"><span>食べる量</span><span>${esc(eatLabel(st))}<span class="muted num">（食習慣${Math.round(st.habit * 100)}%）</span></span></div>
@@ -1689,13 +1722,17 @@ function closeModal() {
   if (kind === 'gift' && S) S.giftMode = null;
   $('#modal').hidden = true; $('#modal').innerHTML = '';
   if (kind === 'cook' && S && S.invite) { const h = H[S.invite.id]; S.invite = null; narr(`（結局、${h.name}とお茶を飲んで、部屋まで送った）`); advanceSlot(); return; }
-  if (kind === 'shop' && shopBought) { shopBought = false; sceneBg('supermarket'); encounter('shopping') || encounter('town'); narr('買い出しから戻った。'); advanceSlot(); }
+  if (kind === 'shop' && shopBought) { shopBought = false; S.shopCnt = S.shopCnt || {}; S.shopCnt.conveni = (S.shopCnt.conveni || 0) + 1; sceneBg('supermarket'); encounter('shopping') || encounter('town'); narr('買い出しから戻った。'); advanceSlot(); }
   else if ((kind === 'night' || kind === 'autoDone') && S.pendingEnding) { const k = S.pendingEnding; S.pendingEnding = null; openModal('ending', endingHTML(k)); }
   else if (kind === 'night' || kind === 'ending' || kind === 'autoDone') {
     narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`);
     HS().filter(h => h.birthday === mmdd() && S.h[h.id].met).forEach(h => narr(`今日は${h.name}の誕生日だ。`));
     { const w = wxNow(); if (w) narr(`今日の天気：${WX[w.k]}、${w.temp}℃。${w.k === 'rain' || w.k === 'snow' ? '外に出る住人は少なそうだ。' : hotDay() ? '暑い。冷たいものが喜ばれそうだ。' : coldDay() ? '寒い。あったかいものが喜ばれそうだ。' : ''}`); }
     (S.morningNotes || []).forEach(x => narr(x)); S.morningNotes = [];
+    if (typhoonToday()) narr('ラジオによると、今夜、台風が近づいているらしい。夜は停電するかもしれない。');
+    if (mmdd() === myBday()) narr('今日は、自分の誕生日だ。');
+    HS().filter(h => S.h[h.id].family && S.h[h.id].family.day === S.day).forEach(h => narr(`${h.name}の家族が、上京してくるらしい。`));
+    { const p = homePeriod(); if (p && mmdd() === p.from) { const gone = HS().filter(h => S.h[h.id].away && S.h[h.id].away.home); if (gone.length) narr(`${p.name}。${gone.map(h => shortName(h)).join('・')}は実家に帰省した。`); } }
     { const rq = Object.entries(S.req || {}).filter(([id, r]) => r.until - S.day <= 1); if (rq.length) narr(`依頼の期限が近い：${rq.map(([id]) => shortName(H[id])).join('・')}`); }
     (C.seasons || []).filter(e => e.from === mmdd()).forEach(e => narr(`今日から${e.name}の時期だ。自室から誘える。`));
     render();
@@ -1833,7 +1870,7 @@ function endingHTML(kind) {
     return `<div class="drow"><div class="l1"><b>${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</b><span class="num">${h.weight.toFixed(1)} → ${st.weight.toFixed(1)}kg</span><span>段階${st.stage}「${esc(stageInfo(st.stage).name)}」</span></div>
       <div class="l2">親密度 ${Math.round(st.aff)}・${esc(eatLabel(st))}</div></div>`; }).join('');
   return `<div class="kicker">${kind === 'full' ? 'SPECIAL ENDING' : `${yr}年度の総決算`}</div><h3>${esc(e.title)}</h3>
-    <div class="ending">${(e.text || []).map(x => `<p>${esc(fill(x))}</p>`).join('')}</div>
+    <div class="ending">${(e.text || []).map(x => `<p>${esc(fill(x))}</p>`).join('')}${S.yearResult ? `<p>${esc(S.yearResult)}</p>` : ''}</div>
     <div class="roster">${rows}</div>
     <button class="btn primary close" data-act="close">このまま続ける<small>セーブはそのまま。次の年度へ</small></button>`;
 }
@@ -2000,6 +2037,89 @@ function taxNotices() {
   return out;
 }
 const taxLate = () => { const tx = S.tax; if (!tx || S.day <= tx.due) return 0; return Math.round(tx.amount * C.propertyTax.lateRate * (S.day - tx.due) / 365 / 100) * 100; };
+/* ---------- v1.8：季節もの・暮らしのイベント（E2・E4・E5・E9・E11・E12） ---------- */
+const typhoonToday = () => S.typhoonDay === S.day;
+const busyType = h => h.busy || (/大学|学生/.test(h.job || '') ? 'student' : /主婦/.test(h.job || '') ? 'none' : 'worker');
+const busyNow = h => ((C.busySeasons || {})[busyType(h)] || []).find(([a, b]) => inRange(mmdd(), a, b));
+const homePeriod = () => ((C.homecoming || {}).periods || []).find(p => inRange(mmdd(), p.from, p.to));
+const myBday = () => S.myBirthday || C.myBirthday || '10-15';
+function gatherTyphoon() {
+  const T = C.typhoon, hs = HS().filter(h => { const st = S.h[h.id]; return st.met && !st.sick && !(st.away && S.day <= st.away.until) && (bldOf(h) === 'apartment' ? st.aff >= 35 : st.aff >= 70); });
+  S.view = { type: 'self' };
+  narr('（窓ががたがたと鳴り、ふっと電気が消えた。…停電だ。懐中電灯とろうそくを持って、住人の部屋をまわった）');
+  if (!hs.length) { narr('（誰も来なかった。ひとりで、冷蔵庫のものを片づけた）'); S.typhoonDay = null; advanceSlot(); return; }
+  const kc = T.kcal + (hasFac('nabe') ? T.nabeKcal : 0);
+  withCast(hs.map(h => h.id), () => {
+    narr(`（101号室に、${hs.map(h => shortName(h)).join('・')}が集まった。${hasFac('nabe') ? 'カセットコンロで、冷蔵庫の中身を全部入れた鍋をつくった' : '冷蔵庫の中身を、傷む前に全部並べた'}）`);
+    hs.forEach(h => { const st = S.h[h.id]; speak(h, 'typhoon'); st.intake += kc; st.ate = true; st.habit = clamp(st.habit + 0.02, 0, 1); addAff(h, T.affection + (hasFac('nabe') ? 1 : 0)); });
+    hs.forEach((a, i) => hs.slice(i + 1).forEach(b => pairAdd(a.id, b.id, 3)));
+    narr('（ろうそくの明かりの中、嵐の音を聞きながら、みんなで食べ続けた）');
+  });
+  S.typhoonMax = Math.max(S.typhoonMax || 0, hs.length); S.typhoonHelpers = hs.map(h => h.id); S.typhoonAfter = S.day + 1; S.typhoonDay = null;
+  advanceSlot();
+}
+function gatherMyBirthday() {
+  const hs = HS().filter(h => S.h[h.id].met && S.h[h.id].aff >= 50 && !(S.h[h.id].away && S.day <= S.h[h.id].away.until)).sort((a, b) => S.h[b.id].aff - S.h[a.id].aff).slice(0, 5);
+  S.myBdayDone = yearOf();
+  if (!hs.length) return false;
+  S.view = { type: 'self' };
+  withCast(hs.map(h => h.id), () => {
+    narr(`（101号室の戸を開けると、クラッカーが鳴った。${hs.map(h => shortName(h)).join('・')}が、ケーキを作って待っていた）`);
+    hs.forEach(h => { const st = S.h[h.id]; speak(h, 'myBirthday'); st.intake += 1000; st.habit = clamp(st.habit + 0.02, 0, 1); addAff(h, 3); });
+    const caps = hs.filter(h => S.h[h.id].captured); if (caps.length >= 2) sayOther(caps[0], 'jealous', caps[1]);
+    narr('（作りすぎたケーキは、結局みんなが平らげた）');
+  });
+  return true;
+}
+function sentoHTML() {
+  const s = slotName(), hs = HS().filter(h => S.h[h.id].met && present(h) && S.h[h.id].aff >= C.sento.minAffection), caps = hs.filter(h => S.h[h.id].captured);
+  const sel = S.sentoSel || [], max = caps.length >= 2 ? 2 : 1;
+  return `<h3>銭湯に誘う</h3><div class="sub">${yen(C.sento.price)}（2人分）。${max === 2 ? '攻略した住人なら2人まで一緒に誘える。' : ''}</div>
+    ${hs.map(h => `<button class="item pick ${sel.includes(h.id) ? 'on' : ''}" data-act="sentoToggle" data-id="${h.id}"><div>${esc(h.name)}<small>親密度 ${Math.round(S.h[h.id].aff)}</small></div><span class="num">${sel.includes(h.id) ? '✓' : ''}</span></button>`).join('') || '<p class="muted">誘える住人がいない（親密度50以上・在室）。</p>'}
+    <div class="acts"><button class="btn primary" data-act="sentoGo" ${sel.length ? '' : 'disabled'}>銭湯へ行く<small>時間が進む</small></button><button class="btn close" data-act="close">やめる</button></div>`;
+}
+/* ---------- v1.8：なじみの店（S7） ---------- */
+const shopCnt = id => ((S.shopCnt || {})[id] || 0);
+const shopRank = id => (shopCnt(id) >= C.regulars.vip ? 'vip' : shopCnt(id) >= C.regulars.regular ? 'regular' : '');
+/* ---------- v1.8：単位と進級（S8） ---------- */
+function creditJudge(rep) {
+  const CR = C.credits, sem = S.sem || { went: 0, total: 0 }, rate = sem.total ? sem.went / sem.total : 1;
+  const got = S.graduated ? 0 : rate >= 0.7 ? CR.perTerm : rate >= 0.5 ? CR.perTerm / 2 : 0;
+  S.credits = (S.credits == null ? CR.start : S.credits) + got; S.sem = { went: 0, total: 0 };
+  if (!S.graduated) rep.events.push(`${mmdd() === CR.judge[0] ? '前期' : '後期'}の成績が出た。出席率 ${Math.round(rate * 100)}%、${got}単位（合計 ${S.credits}単位）。`);
+}
+function gradeJudge() {
+  if (S.graduated) return '';
+  const g = S.grade || 2, need = C.credits.need[g] || 999, cr = S.credits == null ? C.credits.start : S.credits;
+  if (cr >= need) { if (g >= 4) { S.graduated = true; return '大学を卒業した。これからは、管理人の仕事に専念する。'; } S.grade = g + 1; return `${g + 1}年生に進級した（${cr}単位）。`; }
+  return `単位が足りず、${g}年生をもう一度やることになった（${cr}／${need}単位）。…管理人の仕事に夢中になりすぎたかもしれない。`;
+}
+/* ---------- v1.8：実績（S9） ---------- */
+function achvCheck() {
+  const A = (S.achv = S.achv || {}), hs = HS(), got = [], LL = CS.findIndex(c => /LL/.test(c.name));
+  const test = {
+    big100: () => hs.some(h => S.h[h.id].weight >= 100),
+    double: () => hs.some(h => S.h[h.id].weight >= h.weight * 2),
+    allLL: () => LL >= 0 && hs.length && hs.every(h => S.h[h.id].clothes && S.h[h.id].clothes.top >= LL),
+    floor3: () => (S.floorCount || 0) >= 3,
+    tera: () => !!S.teraDone,
+    storm5: () => (S.typhoonMax || 0) >= 5,
+    care10: () => (S.careCount || 0) >= 10,
+    regular3: () => Object.keys(S.shopCnt || {}).filter(id => shopRank(id) === 'vip').length >= 3,
+    keep3: () => hs.filter(h => S.h[h.id].keep).length >= 3,
+    paradise: () => !!S.endFull,
+    tax: () => !!S.taxYearOk,
+    graduate: () => !!S.graduated
+  };
+  (D.achievements || []).forEach(a => { if (!A[a.id] && test[a.id] && test[a.id]()) { A[a.id] = S.day; got.push(a); } });
+  return got;
+}
+function achvHTML() {
+  const A = S.achv || {};
+  return `<h3>実績</h3><div class="sub">称号を1つ選ぶと、タイトル画面に表示される。</div>
+    <div class="roster">${(D.achievements || []).map(a => `<div class="rrow ${A[a.id] ? 'link' : ''}" ${A[a.id] ? `data-act="setTitle" data-id="${a.id}"` : ''}><div class="rname"><b>${A[a.id] ? (S.titleId === a.id ? '★ ' : '') + esc(a.name) : '？？？'}</b><small class="muted">${esc(a.desc)}</small></div><div></div><div class="rval"><small>${A[a.id] ? A[a.id] + '日目' : '未達成'}</small></div></div>`).join('')}</div>
+    <button class="btn close" data-act="close">閉じる</button>`;
+}
 /* ---------- v1.8：デカ盛りチャレンジ（E8） ---------- */
 function challengeGo(h) {
   const st = S.h[h.id], CH = C.challenge, tier = Math.min(st.chal || 0, CH.menus.length - 1), m = CH.menus[tier];
@@ -2034,6 +2154,10 @@ function settingsHTML() {
     <h4 style="margin:10px 0 4px">難易度</h4>
     <div class="grid3">${Object.entries(C.difficulty || {}).map(([k, v]) => `<button class="card3 ${((S.diff || 'normal') === k) ? 'sel' : ''}" data-act="setDiff" data-k="${k}">
       <b>${esc(v.label)}</b><small>警戒 ×${v.wary}・親密度 ×${v.aff}</small><small>維持 体重×${v.maint}・飽き ${v.boredDays ? v.boredDays + '日' : 'なし'}</small></button>`).join('')}</div>
+    <h4 style="margin:12px 0 4px">あなたの誕生日</h4>
+    <div class="row"><span>誕生日</span><span><select data-chg="mybday">${Array.from({ length: 12 }, (_, i) => i + 1).map(m => `<option value="${m}" ${+myBday().slice(0, 2) === m ? 'selected' : ''}>${m}月</option>`).join('')}</select>
+      <select data-chg="mybdayD">${Array.from({ length: 31 }, (_, i) => i + 1).map(d => `<option value="${d}" ${+myBday().slice(3) === d ? 'selected' : ''}>${d}日</option>`).join('')}</select></span></div>
+    <div class="sub">大学 ${S.graduated ? '卒業' : `${S.grade || 2}年生・${S.credits == null ? C.credits.start : S.credits}単位`}</div>
     ${(window.SETTINGS_EXTRA || []).map(f => f()).join('')}
     <button class="btn close" data-act="close">閉じる</button>`;
 }
@@ -2064,7 +2188,7 @@ function autoHTML() {
 function autoDay() {
   const wk = dow() < 5, pay = C.partTimePay;
   S.building = clamp(S.building + C.manageGain * 2, 0, 100);
-  if (wk) { S.uni.went++; S.uniToday = true; S.money += pay; } else S.money += pay * 2;
+  if (wk && !S.graduated) { S.uni.went++; S.uniToday = true; (S.sem = S.sem || { went: 0, total: 0 }).went++; S.money += pay; } else S.money += pay * 2;
   if (S.autoGift) {
     let budget = (C.autoPlan || {}).giftBudget || 3000;
     HS().forEach(h => {
@@ -2088,6 +2212,7 @@ function menuHTML() {
     <button class="btn" data-act="rosterOpen">住人一覧・成長日記<small>会った住人の親密度と、毎日の体型の記録</small></button>
     <button class="btn" data-act="galleryOpen">ギャラリー<small>これまでに見た立ち絵</small></button>
     <button class="btn" data-act="phoneOpen">スマホ${unreadPhone() ? `（${unreadPhone()}）` : ''}<small>住人からのメッセージ</small></button>
+    <button class="btn" data-act="achvOpen">実績<small>${Object.keys(S.achv || {}).length}／${(D.achievements || []).length}</small></button>
     <button class="btn" data-act="settingsOpen">設定<small>難易度（今：${esc(diffOf().label || 'ふつう')}）など</small></button>
     <button class="btn" data-act="saveNow">セーブ<small>${cloudDoc ? 'アカウントに保存（自動セーブもあり）' : 'このブラウザに保存'}</small></button>
     <button class="btn" data-act="exportOpen">セーブコード<small>書き出して別の端末へ</small></button>
@@ -2135,6 +2260,20 @@ const ACT = {
   menu() { openModal('menu', menuHTML()); },
   rosterOpen() { openModal('roster', rosterHTML()); },
   settingsOpen() { openModal('settings', settingsHTML()); },
+  achvOpen() { openModal('achv', achvHTML()); },
+  setTitle(d) { S.titleId = d.id; save(); openModal('achv', achvHTML()); },
+  typhoon() { gatherTyphoon(); },
+  sentoOpen() { S.sentoSel = []; openModal('sento', sentoHTML()); },
+  sentoToggle(d) { const s = S.sentoSel = S.sentoSel || [], max = HS().filter(h => S.h[h.id].captured && present(h)).length >= 2 ? 2 : 1, i = s.indexOf(d.id);
+    if (i >= 0) s.splice(i, 1); else { if (s.length >= max) s.shift(); s.push(d.id); } openModal('sento', sentoHTML()); },
+  sentoGo() {
+    const hs = (S.sentoSel || []).map(id => H[id]); S.sentoSel = []; closeModal(); if (!hs.length || S.money < C.sento.price) return;
+    S.money -= C.sento.price * (hs.length > 1 ? 1.5 : 1); S.sentoDay = S.day; sceneBg('town');
+    withCast(hs.length > 1 ? hs.map(h => h.id) : null, () => {
+      hs.forEach(h => { const st = S.h[h.id]; S.ctxKg = Math.floor(st.weight / 5) * 5; st.intake += C.sento.kcal; addAff(h, C.sento.affection); if (!tryScene(h, 'sento')) speak(h, 'sento'); });
+    });
+    S.view = { type: 'self' }; advanceSlot();
+  },
   payTax(d) {
     const tx = S.tax, amt = tx.amount + taxLate(); if (!tx || tx.paid || S.money < amt) return;
     S.money -= amt; tx.paid = true; (S.taxPaid = S.taxPaid || []).push({ day: S.day, amount: amt, late: S.day > tx.due });
@@ -2411,6 +2550,18 @@ const ACT = {
         if (st.stage >= 10 && !fl.includes('floor_e10')) { fl.push('floor_e10'); if (tryScene(h, 'floor')) { S.floorCount = (S.floorCount || 0) + 1; return true; } }
       }
       if (st.recoverNew) { st.recoverNew = false; if (tryScene(h, 'recover')) return true; }
+      if (st.homeBack) { st.homeBack = false; st.intake += C.homecoming.backKcal; addAff(h, 2);
+        const mc = [13, 9, 5].find(x => st.stage >= x && !flagsOf(h).includes('momcall_' + x));
+        if (mc) { flagsOf(h).push('momcall_' + mc); if (!tryScene(h, 'homeBack')) speak(h, 'homeBack'); tryScene(h, 'momCall'); return true; }
+        if (!tryScene(h, 'homeBack')) speak(h, 'homeBack'); return true; }
+      if (st.family) {
+        if (st.family.day === S.day && st.family.step === 0) { st.family.step = 1; if (tryScene(h, 'familyVisit')) return true; }
+        else if (st.family.step === 1 && S.day === st.family.day + 1) { st.family.step = 2; st.intake += C.family.dinnerKcal; addAff(h, C.family.affection); sceneBg('izakaya');
+          narr(`（${h.name}の家族に誘われて、焼肉食べ放題へ。「管理人さんの分はうちで持つから」）`); speak(h, 'familyDinner'); return true; }
+        else if (st.family.step === 2 && S.day > st.family.day + 1) { st.family = null; if (tryScene(h, 'afterFamily')) return true; }
+      }
+      if (st.examEnd && S.day - st.examEnd <= 1 && st.examSeen !== st.examEnd) { st.examSeen = st.examEnd; st.examParty = S.day; if (!tryScene(h, 'examEnd')) speak(h, 'examEnd'); return true; }
+      if (busyNow(h) && Math.random() < 0.25 && st.busySeen !== S.day) { st.busySeen = S.day; if (!tryScene(h, 'busy')) speak(h, 'busy'); return true; }
       if (S.taxSeenBy === h.id) { S.taxSeenBy = null; if (!tryScene(h, 'taxNotice')) speak(h, 'taxNotice'); return true; }
       // E10 昔の服が入らない
       for (const [sg, ty] of [[13, 'oldClothes3'], [9, 'oldClothes2'], [5, 'oldClothes1']]) {
@@ -2556,7 +2707,7 @@ const ACT = {
     openModal('eatout', `<h3>${esc(h.name)}を外食に誘う</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>・満腹 <span class="num">${st.full}／${st.cap}</span></div>
       <div class="grid3">${(D.restaurants || []).filter(r => r.slots.includes(s)).map(r => {
         const like = (h.likes || []).includes(r.likeTag) || (st.acquired || {})[r.likeTag];
-        return `<div class="card3 ${st.full + r.full > st.cap ? 'over' : ''}"><b>${esc(r.name)}</b>${like && st.known && st.known[r.likeTag] === 'like' ? '<span class="chip like">好き</span>' : ''}
+        return `<div class="card3 ${st.full + r.full > st.cap ? 'over' : ''}"><b>${esc(r.name)}</b>${shopRank(r.id) === 'vip' ? '<span class="chip like">顔パス</span>' : shopRank(r.id) ? '<span class="chip">常連</span>' : ''}${like && st.known && st.known[r.likeTag] === 'like' ? '<span class="chip like">好き</span>' : ''}
           ${r.challenge ? `<small>${esc(C.challenge.menus[Math.min(st.chal || 0, 2)].name)}に挑戦（満腹${C.challenge.menus[Math.min(st.chal || 0, 2)].full}ぶん）</small><span class="num">成功で無料／失敗${yen(C.challenge.price)}</span>` : `<small>${r.kcal}kcal・満腹+${r.full}</small><span class="num">${yen(r.price)}</span>`}
           <button class="mini" data-act="meal" data-kind="eatOut" data-place="${r.id}" ${S.money >= r.price ? '' : 'disabled'}>誘う</button></div>`; }).join('')}</div>
       <button class="btn close" data-act="close">やめる</button>`);
@@ -2568,7 +2719,8 @@ const ACT = {
     const h = d.id ? H[d.id] : room(), st = S.h[h.id], base = D.meals[d.kind];
     const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
     const place = d.place ? (D.restaurants || []).find(r => r.id === d.place) : null;
-    const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : place ? Object.assign({}, base, place) : base;
+    let m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : place ? Object.assign({}, base, place) : base;
+    if (place && shopRank(place.id)) m = Object.assign({}, m, { kcal: Math.round(m.kcal * C.regulars.bigRate) + (shopRank(place.id) === 'vip' ? C.regulars.vipExtra : 0), price: shopRank(place.id) === 'vip' ? Math.round(m.price * C.regulars.vipDiscount) : m.price });
     dietStopCheck(h, st);
     if (st.diet && !st.captured) { speak(h, 'dietRefuse'); render(); return; }
     if (st.full + m.full > st.cap) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
@@ -2578,7 +2730,11 @@ const ACT = {
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;
     aoiJealous(h);
     if (d.kind === 'eatOut') {
-      if (place) { sceneBg(place.bg); narr(`（${h.name}と、${place.name}へ行った）`); if ((h.likes || []).includes(place.likeTag) || (st.acquired || {})[place.likeTag]) { addAff(h, 2); st.known[place.likeTag] = 'like'; } }
+      if (place && st.examParty && S.day - st.examParty <= 1) { st.examParty = null; addAff(h, 3); narr('（打ち上げ。今日は、とことん食べる日だ）'); }
+      if (place) { sceneBg(place.bg); narr(`（${h.name}と、${place.name}へ行った）`);
+        S.shopCnt = S.shopCnt || {}; S.shopCnt[place.id] = (S.shopCnt[place.id] || 0) + 1; st.shopWith = st.shopWith || {}; st.shopWith[place.id] = (st.shopWith[place.id] || 0) + 1;
+        if (shopRank(place.id) === 'vip') narr('（「いつもありがとね」と、店主がおまけの一品を付けてくれた）'); else if (shopRank(place.id) === 'regular') narr('（「大盛りにしときますね」と、店員さんが笑った）');
+        if (st.shopWith[place.id] >= C.regulars.heroineRegular) addAff(h, 1); if ((h.likes || []).includes(place.likeTag) || (st.acquired || {})[place.likeTag]) { addAff(h, 2); st.known[place.likeTag] = 'like'; } }
       else sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
     }
     st.habit = clamp(st.habit + m.habit, 0, 1);
@@ -2589,7 +2745,7 @@ const ACT = {
   },
   leave() { S.view = { type: 'map' }; advanceSlot(); },
   uni() {
-    if (!S.uniToday) { S.uni.went++; S.uniToday = true; }
+    if (!S.uniToday) { S.uni.went++; S.uniToday = true; (S.sem = S.sem || { went: 0, total: 0 }).went++; }
     sceneBg('campus');
     narr(pick(['講義を受けた。眠い。', 'ゼミに顔を出した。', '図書館でレポートを進めた。']));
     encounter('campus') || encounter('town');
@@ -2602,7 +2758,12 @@ const ACT = {
     advanceSlot();
   },
   manage() {
-    S.building = clamp(S.building + C.manageGain, 0, 100);
+    S.building = clamp(S.building + C.manageGain * (S.graduated ? 1.5 : 1), 0, 100);
+    if (slotName() === '朝' && S.typhoonAfter === S.day) {   // 台風の翌朝は片付け
+      S.typhoonAfter = null; S.building = clamp(S.building + 20, 0, 100); narr('台風一過。折れた枝やトタンの切れ端を、みんなで片付けた。（建物の状態 +20）');
+      const hp = (S.typhoonHelpers || []).map(id => H[id]).filter(Boolean); if (hp.length) speak(pick(hp), 'typhoonAfter');
+      advanceSlot(); return;
+    }
     if (slotName() === '朝') { narr('敷地と玄関まわりを掃除した。'); morningGreet('morning'); advanceSlot(); return; }
     if (slotName() === '夕') { narr('夕暮れの敷地を掃き、玄関の明かりをつけた。'); morningGreet('evening'); advanceSlot(); return; }
     narr(pick(['廊下と階段を掃除した。', '雨どいの詰まりを直した。', 'きしむ床板を補修した。']));
@@ -2653,7 +2814,8 @@ const ACT = {
 
 // 成長日記の「目標の体型」
 document.addEventListener('change', e => {
-  const el = e.target; if (!el.dataset || el.dataset.chg !== 'target' || !S) return;
+  const el = e.target; if (!el.dataset || !el.dataset.chg || !S) return;
+  if (el.dataset.chg === 'mybday' || el.dataset.chg === 'mybdayD') { const [m, d] = myBday().split('-'); S.myBirthday = el.dataset.chg === 'mybday' ? String(el.value).padStart(2, '0') + '-' + d : m + '-' + String(el.value).padStart(2, '0'); save(); return; }
   const st = S.h[el.dataset.id]; st.target = +el.value || null; st.targetHit = !!(st.target && st.stage >= st.target); if (!st.target) st.keep = false; save();
 });
 document.addEventListener('click', e => {
