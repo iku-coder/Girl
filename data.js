@@ -10,7 +10,7 @@ window.GAME_DATA = {
     apartmentName: 'ひだまり荘',
     bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v1.7',
+    version: '試作版 v1.8',
     slots: ['朝', '昼', '夕', '夜', '深夜'],   // v1.7 深夜を追加：深夜になると自室へ戻り、寝るか料理をするとその日の集計へ
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
@@ -223,6 +223,14 @@ window.GAME_DATA = {
       { to: 12, shop: '下町のスナック「夜明け」', name: 'まりちゃん' },
       { to: 15, shop: 'ぽっちゃり専門店「まんまる」・指名ナンバーワン', name: 'まりりん' }
     ],
+    // 難易度（v1.8・S12）。メニュー →「設定」でいつでも変えられる
+    difficulty: {
+      easy:   { label: 'ゆったり', wary: 0.5, aff: 1.3,  boredDays: 0, requestDays: 99, maint: 26 },
+      normal: { label: 'ふつう',   wary: 1,   aff: 1,    boredDays: 7, requestDays: 2,  maint: 28 },
+      hard:   { label: 'じっくり', wary: 1.3, aff: 0.85, boredDays: 5, requestDays: 1,  maint: 30 }
+    },
+    // まとめて進める（v1.8・S11）：平日 朝＝掃除・昼＝大学・夕＝バイト・夜＝管理業務／休日 朝＝掃除・昼夕＝バイト・夜＝管理業務
+    autoPlan: { giftBudget: 3000, stopMoney: 3000 },
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
