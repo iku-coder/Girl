@@ -10,7 +10,7 @@ window.GAME_DATA = {
     apartmentName: 'ひだまり荘',
     bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v1.9',
+    version: '試作版 v2.0',
     slots: ['朝', '昼', '夕', '夜', '深夜'],   // v1.7 深夜を追加：深夜になると自室へ戻り、寝るか料理をするとその日の集計へ
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
@@ -289,6 +289,17 @@ window.GAME_DATA = {
     regulars: { regular: 5, vip: 15, bigRate: 1.2, vipDiscount: 0.9, vipExtra: 300, heroineRegular: 5 },
     // S8 単位と進級（前期は7/31、後期は1/31に判定。3/31に進級。2年生・60単位から）
     credits: { start: 60, perTerm: 20, judge: ['07-31', '01-31'], need: { 2: 80, 3: 104, 4: 124 } },
+    // 外出先（v2.0）。自室の「外出」からまとめて選ぶ。store＝買い出しができる店（品ぞろえは foods の shops）
+    outings: [
+      { id: 'uni',       name: '大学',       note: '平日の朝・昼', slots: ['朝', '昼'], weekday: true },
+      { id: 'job',       name: 'アルバイト', note: 'ファミレス・昼・夕', slots: ['昼', '夕'] },
+      { id: 'conveni',   name: 'コンビニ',   note: '朝〜夜・買い出し', slots: ['朝', '昼', '夕', '夜'], store: true, bg: 'supermarket' },
+      { id: 'super',     name: 'スーパー',   note: '朝〜夕・買い出し', slots: ['朝', '昼', '夕'], store: true, bg: 'super' },
+      { id: 'shotengai', name: '商店街',     note: '昼・夕・買い出し', slots: ['昼', '夕'], store: true, bg: 'shotengai' },
+      { id: 'depa',      name: 'デパート',   note: '昼・夕・買い出し', slots: ['昼', '夕'], store: true, bg: 'depa' },
+      { id: 'sento',     name: '銭湯',       note: '夕・夜（休日は朝も）', slots: ['夕', '夜'], weekendMorning: true },
+      { id: 'shrine',    name: '陽守神社',   note: '昼・夕・お供え', slots: ['昼', '夕'] }
+    ],
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
@@ -340,30 +351,36 @@ window.GAME_DATA = {
 
   /* ---- 差し入れ用の食べ物 ---- */
   foods: [
-    { id: 'pudding',   name: 'コンビニプリン',   price: 180, kcal: 250,  full: 8,  tags: ['sweet', 'cold'] },
-    { id: 'creampuff', name: 'シュークリーム',   price: 150, kcal: 230,  full: 7,  tags: ['sweet'] },
-    { id: 'cake',      name: 'ショートケーキ',   price: 450, kcal: 380,  full: 12, tags: ['sweet', 'cold'] },
-    { id: 'donuts',    name: 'ドーナツ6個入り',  price: 780, kcal: 1400, full: 28, tags: ['sweet'] },
-    { id: 'chips',     name: 'ポテトチップス',   price: 160, kcal: 550,  full: 14, tags: ['snack'] },
-    { id: 'nikuman',   name: '肉まん',           price: 150, kcal: 250,  full: 10, tags: ['meal', 'hot'] },
-    { id: 'karaage',   name: 'からあげ弁当',     price: 550, kcal: 900,  full: 30, tags: ['fried', 'meal'] },
-    { id: 'beerset',   name: 'ビールとつまみ',   price: 600, kcal: 700,  full: 16, tags: ['alcohol', 'fried'], night: 1 },
+    { id: 'pudding',   name: 'コンビニプリン',   price: 180, kcal: 250,  full: 8,  tags: ['sweet', 'cold'], shops: ['conveni', 'super'] },
+    { id: 'creampuff', name: 'シュークリーム',   price: 150, kcal: 230,  full: 7,  tags: ['sweet'], shops: ['conveni', 'depa'] },
+    { id: 'cake',      name: 'ショートケーキ',   price: 450, kcal: 380,  full: 12, tags: ['sweet', 'cold'], shops: ['depa', 'shotengai'] },
+    { id: 'donuts',    name: 'ドーナツ6個入り',  price: 780, kcal: 1400, full: 28, tags: ['sweet'], shops: ['shotengai', 'depa'] },
+    { id: 'chips',     name: 'ポテトチップス',   price: 160, kcal: 550,  full: 14, tags: ['snack'], shops: ['conveni', 'super'] },
+    { id: 'nikuman',   name: '肉まん',           price: 150, kcal: 250,  full: 10, tags: ['meal', 'hot'], shops: ['conveni', 'shotengai'] },
+    { id: 'karaage',   name: 'からあげ弁当',     price: 550, kcal: 900,  full: 30, tags: ['fried', 'meal'], shops: ['super', 'shotengai'] },
+    { id: 'beerset',   name: 'ビールとつまみ',   price: 600, kcal: 700,  full: 16, tags: ['alcohol', 'fried'], night: 1, shops: ['conveni', 'super'] },
     // v1.7 追加。night＝深夜に差し入れると、満腹ゲージの上限がこの分だけ広がる（夜食は胃袋を育てる）
-    { id: 'cupramen',  name: 'カップラーメン',       price: 220,  kcal: 450,  full: 14, tags: ['meal', 'snack', 'hot'], night: 1 },
-    { id: 'famichiki', name: 'ホットスナックのチキン', price: 230, kcal: 300,  full: 8,  tags: ['fried', 'snack'] },
-    { id: 'daifuku',   name: '豆大福',               price: 160,  kcal: 250,  full: 8,  tags: ['sweet'] },
-    { id: 'potatol',   name: 'フライドポテトL',      price: 400,  kcal: 520,  full: 14, tags: ['fried', 'snack'], night: 1 },
-    { id: 'pan5',      name: '菓子パン5個',          price: 650,  kcal: 1600, full: 30, tags: ['sweet'] },
-    { id: 'katsudon',  name: 'カツ丼',               price: 700,  kcal: 1100, full: 32, tags: ['fried', 'meal', 'hot'], night: 1 },
-    { id: 'gyudon',    name: '特盛り牛丼',           price: 900,  kcal: 1300, full: 36, tags: ['meal', 'hot'], night: 2 },
-    { id: 'burger',    name: '特大ハンバーガーセット', price: 1100, kcal: 1500, full: 38, tags: ['fried', 'meal'], night: 2 },
-    { id: 'icefamily', name: 'アイスのファミリーパック', price: 900, kcal: 1400, full: 26, tags: ['sweet', 'cold'], night: 1 },
-    { id: 'ramenbig',  name: '背脂ラーメン（持ち帰り）', price: 1200, kcal: 1700, full: 42, tags: ['meal', 'hot'], night: 3 },
-    { id: 'sake',      name: '日本酒の一升瓶とおでん', price: 2400, kcal: 1900, full: 30, tags: ['alcohol', 'hot'], night: 1 },
-    { id: 'bucketpud', name: 'バケツプリン',         price: 1600, kcal: 2400, full: 40, tags: ['sweet', 'cold'], night: 2 },
-    { id: 'pizzal',    name: 'ピザLサイズ',          price: 2800, kcal: 2700, full: 55, tags: ['fried', 'meal'], night: 3 },
-    { id: 'wholecheese', name: 'チーズケーキ1ホール', price: 2200, kcal: 3000, full: 50, tags: ['sweet', 'cold'], night: 2 },
-    { id: 'friedbucket', name: 'フライドチキンのバケツ', price: 3200, kcal: 3600, full: 65, tags: ['fried', 'meal'], night: 3 }
+    { id: 'cupramen',  name: 'カップラーメン',       price: 220,  kcal: 450,  full: 14, tags: ['meal', 'snack', 'hot'], night: 1, shops: ['conveni', 'super'] },
+    { id: 'famichiki', name: 'ホットスナックのチキン', price: 230, kcal: 300,  full: 8,  tags: ['fried', 'snack'], shops: ['conveni'] },
+    { id: 'daifuku',   name: '豆大福',               price: 160,  kcal: 250,  full: 8,  tags: ['sweet'], shops: ['shotengai', 'depa'] },
+    { id: 'potatol',   name: 'フライドポテトL',      price: 400,  kcal: 520,  full: 14, tags: ['fried', 'snack'], night: 1, shops: ['shotengai'] },
+    { id: 'pan5',      name: '菓子パン5個',          price: 650,  kcal: 1600, full: 30, tags: ['sweet'], shops: ['conveni', 'super'] },
+    { id: 'katsudon',  name: 'カツ丼',               price: 700,  kcal: 1100, full: 32, tags: ['fried', 'meal', 'hot'], night: 1, shops: ['shotengai', 'super'] },
+    { id: 'gyudon',    name: '特盛り牛丼',           price: 900,  kcal: 1300, full: 36, tags: ['meal', 'hot'], night: 2, shops: ['shotengai'] },
+    { id: 'burger',    name: '特大ハンバーガーセット', price: 1100, kcal: 1500, full: 38, tags: ['fried', 'meal'], night: 2, shops: ['shotengai'] },
+    { id: 'icefamily', name: 'アイスのファミリーパック', price: 900, kcal: 1400, full: 26, tags: ['sweet', 'cold'], night: 1, shops: ['super', 'conveni'] },
+    { id: 'ramenbig',  name: '背脂ラーメン（持ち帰り）', price: 1200, kcal: 1700, full: 42, tags: ['meal', 'hot'], night: 3, shops: ['shotengai'] },
+    { id: 'sake',      name: '日本酒の一升瓶とおでん', price: 2400, kcal: 1900, full: 30, tags: ['alcohol', 'hot'], night: 1, shops: ['super', 'shotengai'] },
+    { id: 'bucketpud', name: 'バケツプリン',         price: 1600, kcal: 2400, full: 40, tags: ['sweet', 'cold'], night: 2, shops: ['depa'] },
+    { id: 'pizzal',    name: 'ピザLサイズ',          price: 2800, kcal: 2700, full: 55, tags: ['fried', 'meal'], night: 3, shops: ['super'] },
+    { id: 'wholecheese', name: 'チーズケーキ1ホール', price: 2200, kcal: 3000, full: 50, tags: ['sweet', 'cold'], night: 2, shops: ['depa'] },
+    { id: 'friedbucket', name: 'フライドチキンのバケツ', price: 3200, kcal: 3600, full: 65, tags: ['fried', 'meal'], night: 3, shops: ['shotengai', 'super'] },
+    { id: 'depachoco', name: '高級チョコの詰め合わせ', price: 3000, kcal: 1200, full: 18, tags: ['sweet'], shops: ['depa'] },
+    { id: 'baum',      name: '老舗のバウムクーヘン',   price: 2500, kcal: 2400, full: 40, tags: ['sweet'], shops: ['depa'] },
+    { id: 'depabento', name: 'デパ地下の特選弁当',     price: 1800, kcal: 1100, full: 30, tags: ['meal'], shops: ['depa'] },
+    { id: 'macaron',   name: 'マカロン12個入り',       price: 3600, kcal: 1100, full: 16, tags: ['sweet', 'cold'], shops: ['depa'] },
+    { id: 'korokke',   name: '肉屋のコロッケ10個',     price: 800,  kcal: 1600, full: 34, tags: ['fried', 'snack'], shops: ['shotengai'] },
+    { id: 'obento3',   name: 'スーパーの特売弁当3つ', price: 900,  kcal: 2400, full: 60, tags: ['meal'], shops: ['super'] }
   ],
 
   // 外食に誘う：店を選ぶ（v1.7）。bg は背景（famires / teishoku / izakaya）。likeTag が好物なら親密度+2

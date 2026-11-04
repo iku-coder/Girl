@@ -778,11 +778,11 @@ function drawMsg() {
   $('#tap').hidden = !more; $('#block').hidden = !ch;
   settled = !more && !ch;
   box.classList.toggle('tut', !!(line && line.tut));
-  if (settled) clearSceneBg();
+  if (settled && S && S.sceneBg) S.sceneBgStale = true;   // 最後のメッセージの間は出先の背景のまま。タップか次の行動で戻す
   if (settled && waitingAdvance) queueMicrotask(tryAdvance);
 }
 // その場面だけの背景（大学・バイト・買い出し・外食など）を元に戻す
-function clearSceneBg() { if (S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; updateBg(); } }
+function clearSceneBg() { if (S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; S.sceneBgStale = false; updateBg(); } }
 $('#tap').addEventListener('click', () => { Q.shift(); if (!Q.length) { stageHid = null; stageCast = null; } drawMsg(); });
 let stageHid = null, stageCast = null;
 // 会話中の立ち絵画面。部屋の中で同じヒロインと話しているときは、部屋の画面の立ち絵を使う
@@ -930,14 +930,14 @@ function stretch(h) {
 // 朝の掃除中の挨拶
 // 出先での遭遇・会話（scenes/out/<種類>/<id>.js）。kind: campus（大学）/ job（バイト先のファミレス）/ shopping（買い出し）/ town（街中）
 const ENC_BG = { campus: 'campus', job: 'famires', shopping: 'supermarket', town: 'town' };
-function encounter(kind) {
+function encounter(kind, bgKey) {
   if (S.tutorial || Math.random() >= ((C.encounters || {})[kind] || 0) * (kind === 'town' && isRainy() ? 0.5 : 1)) return false;
   let pool = HS().filter(h => S.h[h.id].met && pickScene(h, kind));
   if (kind === 'campus') pool = S.graduated ? [] : pool.filter(h => (C.campusHeroines || []).includes(h.id));
   if (kind === 'town') { const out = pool.filter(h => !present(h)); if (out.length) pool = out; }
   if (!pool.length) return false;
   const h = pick(pool);
-  sceneBg(ENC_BG[kind]);
+  sceneBg(bgKey || ENC_BG[kind]);
   if (kind === 'town') { const st = S.h[h.id], sg = [13, 9, 5].find(x => st.stage >= x && !flagsOf(h).includes('reunion_' + x));   // E6 昔の知り合いとの再会
     if (sg) { flagsOf(h).push('reunion_' + sg); addAff(h, (C.encounters || {}).affection || 1); return tryScene(h, 'reunion'); } }
   addAff(h, (C.encounters || {}).affection || 1);
@@ -1152,7 +1152,7 @@ function doAdvance() {
   keepLast = true; queueMicrotask(() => queueMicrotask(() => { keepLast = false; }));
   S.slot++;
   dropStaleFigure();   // 時間が進んだら、前の会話の立ち絵は下げる
-  clearSceneBg();      // 出先の背景も元に戻す（自室・地図の背景へ）
+  if (S.sceneBg) { S.sceneBgStale = true; setTimeout(() => { if (S && S.sceneBgStale) clearSceneBg(); }, 1500); }   // 出先の背景は、少し見せてから戻す（タップや次の行動ならすぐ）
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼' && !S.tutorial) rollPackages();
   if (slotName() === '夜' && mmdd() === myBday() && S.myBdayDone !== yearOf()) { if (gatherMyBirthday()) { save(); render(); return; } }
@@ -1366,9 +1366,12 @@ function sceneBg(kind) {
     campus: ['univ_campus_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'ext', time],
     supermarket: ['town_conveni_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time],
     sento: ['town_sento_' + (time === 'night' ? 'night' : 'evening'), 'ext', time],
+    super: ['town_super_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'shop', time],
+    shotengai: ['town_shotengai_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'ext', time],
+    depa: ['town_depa_noon', 'shop', time],
     shrine: ['shrine_' + (time === 'night' ? 'evening' : time === 'evening' ? 'evening' : 'noon'), 'ext', time]
   };
-  S.sceneBg = map[kind] || null; updateBg();
+  S.sceneBg = map[kind] || null; S.sceneBgStale = false; updateBg();
 }
 let bgKey = '';
 function updateBg() {
@@ -1579,21 +1582,15 @@ function selfHTML() {
   if (typhoonToday() && s === '夜') return `<h2>101号室</h2><div class="sub">外は嵐。ラジオが、台風の接近を伝えている。…電気が、ちかちかし始めた。</div>
     <div class="acts"><button class="btn primary wide" data-act="typhoon">住人を101号室に集める<small>停電の夜。冷蔵庫のものを、みんなで食べきる</small></button></div>`;
   const acts = [
-    ...(S.graduated ? [] : [{ act: 'uni', label: '大学へ行く', note: '平日の朝・昼', ok: !isWeekend() && (s === '朝' || s === '昼') }]),
-    { act: 'job', label: 'バイトに行く', note: `昼・夕／${yen(C.partTimePay)}`, ok: s === '昼' || s === '夕' },
+    { act: 'outOpen', label: '外出', note: '大学・バイト・買い出し・銭湯・神社・季節の行事', ok: s !== '深夜', primary: s !== '深夜' && seasonsToday().length > 0 },
     { act: 'manage', label: s === '朝' || s === '夕' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `出かける住人と会えるかも／状態 +${C.manageGain}` : s === '夕' ? `帰ってくる住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: s !== '深夜' },
-    { act: 'shop', label: '買い出し', note: '差し入れを買う（夜・深夜以外）', ok: s !== '夜' && s !== '深夜' },
     { act: 'cook', label: '料理の練習', note: `${s === '深夜' ? 'その日の集計へ' : '夕・夜・深夜'}／${yen(C.cookPracticeCost)}／腕 ${S.cook}`, ok: (s === '夕' || s === '夜' || s === '深夜') && S.cook < cookMax() && S.money >= C.cookPracticeCost },
     { act: 'inviteOpen', label: '部屋に呼ぶ', note: `夕・夜／攻略した住人を101号室に`, ok: (s === '夕' || s === '夜') && HS().some(h => S.h[h.id].captured) },
     { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `${s === '深夜' ? 'その日の集計へ' : '夕・夜・深夜'}／${prepN()}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜' || s === '深夜') && S.cook >= C.prepFrom },
     { act: 'partyOpen', label: '食事会を開く', note: hasFac('nabe') ? `夕・夜／${yen(C.party.price)}／最大${partyMax()}人` : '設備の「大鍋とカセットコンロ」が必要', ok: (s === '夕' || s === '夜') && hasFac('nabe') && S.money >= C.party.price && partyCands().length > 0 },
-    ...(S.h.chihaya && S.h.chihaya.met && active(H.chihaya) ? [{ act: 'offerOpen', label: '神社にお供えする', note: '昼・夕／千早が「おさがり」としていただく', ok: (s === '昼' || s === '夕') && invCount() > 0 && SPX().offerDay !== S.day }] : []),
-    ...(S.tax && !S.tax.paid ? [{ act: 'payTax', label: '税金を払う', note: `昼・夕／固定資産税 ${yen(S.tax.amount + taxLate())}${taxLate() ? '（延滞金込み）' : ''}・期限 ${dateText(S.tax.due)}`, ok: (s === '昼' || s === '夕') && S.money >= S.tax.amount + taxLate(), primary: S.day > S.tax.due }] : []),
-    { act: 'sentoOpen', label: '銭湯に誘う', note: `夕・夜／${yen(C.sento.price)}・親密度${C.sento.minAffection}から`, ok: (s === '夕' || s === '夜' || (s === '朝' && isWeekend())) && S.sentoDay !== S.day && HS().some(h => S.h[h.id].met && present(h) && S.h[h.id].aff >= C.sento.minAffection) },
     { act: 'autoOpen', label: 'いつもどおり過ごす', note: '朝／1日・3日・7日をまとめて進める', ok: s === '朝' && !S.tutorial },
     { act: 'facOpen', label: '設備・修繕', note: `冷蔵庫・こたつ・修繕など（${(C.facilities || []).filter(f => hasFac(f.id)).length}/${(C.facilities || []).length}）`, ok: true },
     ...bdayToday().map(h => ({ act: 'bday', id: h.id, label: `${shortName(h)}の誕生日を祝う`, note: `ケーキを持って部屋へ／${yen(C.birthday.price)}`, ok: S.money >= C.birthday.price, primary: true })),
-    ...seasonsToday().map(e => ({ act: 'seasonOpen', id: e.id, label: e.label, note: `${e.name}・1年に1回`, ok: true, primary: true })),
     { act: 'rest', label: s === '深夜' ? '寝る' : 'ひと休み', note: s === '深夜' ? '1日を終える（その日の集計へ）' : s === '夜' ? '深夜へ' : '次の時間帯へ', ok: true, primary: s === '深夜' }
   ];
   const bb = S.bankbook === 'ready' ? `<button class="btn primary wide" data-act="bankbook">祖父の押し入れを調べる<small>時間は進まない</small></button>`
@@ -1743,7 +1740,8 @@ function closeModal() {
   if (kind === 'gift' && S) S.giftMode = null;
   $('#modal').hidden = true; $('#modal').innerHTML = '';
   if (kind === 'cook' && S && S.invite) { const h = H[S.invite.id]; S.invite = null; narr(`（結局、${h.name}とお茶を飲んで、部屋まで送った）`); advanceSlot(); return; }
-  if (kind === 'shop' && shopBought) { shopBought = false; S.shopCnt = S.shopCnt || {}; S.shopCnt.conveni = (S.shopCnt.conveni || 0) + 1; sceneBg('supermarket'); encounter('shopping') || encounter('town'); narr('買い出しから戻った。'); advanceSlot(); }
+  if (kind === 'shop' && shopBought) { shopBought = false; const sid = S.shopStore || 'conveni'; S.shopCnt = S.shopCnt || {}; S.shopCnt[sid] = (S.shopCnt[sid] || 0) + 1;
+    const sbg = ((C.outings || []).find(o => o.id === sid) || {}).bg || 'supermarket'; sceneBg(sbg); encounter('shopping', sbg) || encounter('town'); narr(`${((C.outings || []).find(o => o.id === sid) || { name: '買い出し' }).name}から戻った。`); advanceSlot(); }
   else if ((kind === 'night' || kind === 'autoDone') && S.pendingEnding) { const k = S.pendingEnding; S.pendingEnding = null; openModal('ending', endingHTML(k)); }
   else if (kind === 'night' || kind === 'ending' || kind === 'autoDone') {
     narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`);
@@ -1761,12 +1759,34 @@ function closeModal() {
 }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && modalKind !== 'night' && modalKind !== 'ending') closeModal(); });
 
+/* ---------- v2.0：外出（自室の「外出」にまとめる） ---------- */
+function outingOk(o) {
+  const s = slotName();
+  if (s === '深夜') return [false, '深夜は出かけられない'];
+  if (o.id === 'uni') { if (S.graduated) return [false, '卒業した']; if (isWeekend()) return [false, '休日は講義がない']; }
+  if (o.id === 'shrine' && !(S.h.chihaya && S.h.chihaya.met && active(H.chihaya))) return [false, 'まだ縁がない'];
+  if (o.id === 'shrine' && SPX().offerDay === S.day) return [false, '今日はもうお参りした'];
+  if (o.id === 'sento' && S.sentoDay === S.day) return [false, '今日はもう行った'];
+  const okSlot = o.slots.includes(s) || (o.weekendMorning && isWeekend() && s === '朝');
+  return okSlot ? [true, ''] : [false, `${o.note}`];
+}
+function outHTML() {
+  const ev = seasonsToday();
+  return `<h3>外出</h3><div class="sub">どこへ出かける？（${slotName()}・所持金 ${yen(S.money)}）</div>
+    ${ev.length ? `<h4 style="margin:8px 0 4px">季節の行事</h4><div class="grid3">${ev.map(e => `<button class="card3 sel" data-act="seasonOpen" data-id="${e.id}"><b>${esc(e.label)}</b><small>${esc(e.name)}・1年に1回</small></button>`).join('')}</div>` : ''}
+    <div class="grid3">${(C.outings || []).map(o => { const [ok, why] = outingOk(o);
+      const extra = o.id === 'job' ? `<small>${yen(C.partTimePay)}</small>` : o.id === 'sento' ? `<small>${yen(C.sento.price)}・住人を誘う</small>` : o.id === 'conveni' && S.tax && !S.tax.paid ? '<small class="up">税金も払える</small>' : o.store && shopRank(o.id) ? `<small>${shopRank(o.id) === 'vip' ? '顔パス' : '常連'}</small>` : '';
+      return `<button class="card3 ${ok ? '' : 'over'}" data-act="outGo" data-id="${o.id}" ${ok ? '' : 'disabled'}><b>${esc(o.name)}</b><small>${esc(ok ? o.note : why)}</small>${extra}</button>`; }).join('')}</div>
+    <button class="btn close" data-act="close">やめる</button>`;
+}
 function shopHTML() {
-  return `<h3>コンビニ・スーパー</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>${shopBought ? '　戻ると時間が進む' : ''}</div>
-    <div class="grid3">${D.foods.map(f => `<div class="card3"><b>${esc(f.name)}</b><small>${f.kcal}kcal・満腹+${f.full}</small><small>${f.tags.map(t => C.tagNames[t] || t).join('/')}${f.night ? `・夜食で胃袋+${f.night}` : ''}</small>
-      <span class="num">${yen(f.price)} <small>所持${S.inv[f.id] || 0}</small></span>
-      <button class="mini" data-act="buy" data-id="${f.id}" ${S.money < f.price ? 'disabled' : ''}>買う</button></div>`).join('')}</div>
-    ${S.tax && !S.tax.paid && S.money >= S.tax.amount + taxLate() ? `<button class="btn" data-act="payTax" data-free="1">ついでに固定資産税を払う<small>${yen(S.tax.amount + taxLate())}</small></button>` : ''}
+  const so = (C.outings || []).find(o => o.id === (S.shopStore || 'conveni')) || { name: 'コンビニ' };
+  const vip = shopRank(S.shopStore || 'conveni') === 'vip', price = f => (vip ? Math.round(f.price * C.regulars.vipDiscount / 10) * 10 : f.price);
+  return `<h3>${esc(so.name)}</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>${vip ? '・顔パス（1割引）' : ''}${shopBought ? '　戻ると時間が進む' : ''}</div>
+    <div class="grid3">${D.foods.filter(f => !f.shops || f.shops.includes(S.shopStore || 'conveni')).map(f => `<div class="card3"><b>${esc(f.name)}</b><small>${f.kcal}kcal・満腹+${f.full}</small><small>${f.tags.map(t => C.tagNames[t] || t).join('/')}${f.night ? `・夜食で胃袋+${f.night}` : ''}</small>
+      <span class="num">${yen(price(f))} <small>所持${S.inv[f.id] || 0}</small></span>
+      <button class="mini" data-act="buy" data-id="${f.id}" ${S.money < price(f) ? 'disabled' : ''}>買う</button></div>`).join('')}</div>
+    ${(S.shopStore || 'conveni') === 'conveni' && S.tax && !S.tax.paid && S.money >= S.tax.amount + taxLate() ? `<button class="btn" data-act="payTax" data-free="1">ついでに固定資産税を払う<small>${yen(S.tax.amount + taxLate())}</small></button>` : ''}
     <button class="btn primary close" data-act="close">${shopBought ? 'アパートに戻る' : 'やめる'}</button>`;
 }
 function giftHTML(h) {
@@ -1925,8 +1945,9 @@ function aoiJealous(other) {
 }
 // 特別な行動（自室）：千早へのお供え
 function offerHTML() {
-  return `<h3>陽守神社にお供えする</h3><div class="sub">お供えは、あとで千早が「おさがり」としていただく。警戒に関係なく受け取ってもらえる（親密度の上がり方は少し小さい）。</div>
+  return `<h3>陽守神社</h3><div class="sub">お供えは、あとで千早が「おさがり」としていただく。警戒に関係なく受け取ってもらえる（親密度の上がり方は少し小さい）。</div>
     ${Object.entries(S.inv).map(([id, n]) => { const f = FOOD[id]; return `<div class="item"><div>${esc(f.name)}<small>${f.kcal}kcal</small></div><span class="num">×${n}</span><button class="mini" data-act="offer" data-id="${id}">お供え</button></div>`; }).join('') || '<p class="muted">手持ちの食べ物がない。</p>'}
+    <button class="btn" data-act="shrineVisit">お参りだけして帰る<small>時間が進む</small></button>
     <button class="btn close" data-act="close">やめる</button>`;
 }
 /* ---------- v1.8：部屋の様子（S6） ---------- */
@@ -2281,6 +2302,16 @@ const ACT = {
   menu() { openModal('menu', menuHTML()); },
   rosterOpen() { openModal('roster', rosterHTML()); },
   settingsOpen() { openModal('settings', settingsHTML()); },
+  outOpen() { openModal('out', outHTML()); },
+  outGo(d) {
+    const o = (C.outings || []).find(x => x.id === d.id); if (!o || !outingOk(o)[0]) return;
+    if (o.store) { S.shopStore = o.id; shopBought = false; openModal('shop', shopHTML()); return; }
+    closeModal();
+    if (o.id === 'uni') return ACT.uni();
+    if (o.id === 'job') return ACT.job();
+    if (o.id === 'sento') return ACT.sentoOpen();
+    if (o.id === 'shrine') return ACT.offerOpen();
+  },
   achvOpen() { openModal('achv', achvHTML()); },
   setTitle(d) { S.titleId = d.id; save(); openModal('achv', achvHTML()); },
   typhoon() { gatherTyphoon(); },
@@ -2428,6 +2459,9 @@ const ACT = {
     S.view = { type: 'map' }; advanceSlot();
   },
   offerOpen() { openModal('offer', offerHTML()); },
+  shrineVisit() { closeModal(); SPX().offerDay = S.day; sceneBg('shrine'); narr('（陽守神社にお参りした。鈴を鳴らして、手を合わせる）');
+    const h = H.chihaya; if (h && S.h.chihaya && S.h.chihaya.aff >= 35 && Math.random() < 0.5) { narr('（境内を掃いていた千早が、こちらに気づいて会釈した）'); speak(h, 'greet'); }
+    advanceSlot(); },
   offer(d) {
     const h = H.chihaya, st = S.h.chihaya, f = FOOD[d.id]; if (!h || !st || !S.inv[d.id]) return;
     closeModal(); S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
@@ -2792,10 +2826,10 @@ const ACT = {
     { const r = Object.keys(S.req || {}).find(id => S.req[id].type !== 'shop'); if (r) doRequest(H[r], true); }
     advanceSlot();
   },
-  shop() { shopBought = false; openModal('shop', shopHTML()); },
+  shop() { S.shopStore = 'conveni'; shopBought = false; openModal('shop', shopHTML()); },
   buy(d) {
-    const f = FOOD[d.id]; if (S.money < f.price) return;
-    S.money -= f.price; S.inv[f.id] = (S.inv[f.id] || 0) + 1; shopBought = true;
+    const f = FOOD[d.id], pr = shopRank(S.shopStore || 'conveni') === 'vip' ? Math.round(f.price * C.regulars.vipDiscount / 10) * 10 : f.price; if (S.money < pr) return;
+    S.money -= pr; S.inv[f.id] = (S.inv[f.id] || 0) + 1; shopBought = true;
     openModal('shop', shopHTML()); render();
   },
   cook() {
@@ -2844,6 +2878,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b || b.disabled) return;
   const fn = ACT[b.dataset.act];
+  if (fn && S && S.sceneBgStale) clearSceneBg();   // 次の行動に移ったら、前の出先の背景を戻す
   if (fn) fn(b.dataset);
 });
 
