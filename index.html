@@ -803,7 +803,7 @@ function drawMsg() {
 }
 // その場面だけの背景（大学・バイト・買い出し・外食など）を元に戻す
 function clearSceneBg() { if (S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; S.sceneBgStale = false; updateBg(); } }
-$('#tap').addEventListener('click', () => { Q.shift(); if (!Q.length) { stageHid = null; stageCast = null; } drawMsg(); });
+$('#tap').addEventListener('click', () => { sfx('tap'); Q.shift(); if (!Q.length) { stageHid = null; stageCast = null; } drawMsg(); });
 let stageHid = null, stageCast = null;
 // 会話中の立ち絵画面。部屋の中で同じヒロインと話しているときは、部屋の画面の立ち絵を使う
 function drawStage() {
@@ -921,14 +921,14 @@ function addAff(h, d) {
   const t1 = tierOf(st.aff);
   // 会話シーンの途中なら、関係の変化と攻略はシーンが終わってから出す
   const later = f => (inScene ? sceneNotes.push(f) : f());
-  if (t1 > t0) later(() => narr(`（${h.name}との関係が「${D.affectionTiers[t1].name}」になった）`));
+  if (t1 > t0) later(() => { sfx('heart'); narr(`（${h.name}との関係が「${D.affectionTiers[t1].name}」になった）`); });
   if (!st.captured && st.aff >= C.captureAffection) { st.captured = true; later(() => { st.captured = false; capture(h); }); }
   if (d > 0 && !S.bankbook) mansionUnlockCheck();
 }
 // 攻略イベント
 function capture(h) {
   const st = S.h[h.id];
-  st.captured = true; st.capturedDay = S.day; st.wary = 0;
+  st.captured = true; st.capturedDay = S.day; st.wary = 0; sfx('capture');
   (h.lines.capture || (D.commonLines || {}).capture || ['……ずっと、一緒にいて']).forEach(t => say(h.name, t, h.color));
   narr(`♥ ${h.name}を攻略した！（${S.day}日目）　これからも一緒に暮らしていける。`);
   mansionUnlockCheck();
@@ -1025,7 +1025,7 @@ function collectRent(h) {
     S.rentDone[h.id] = true; sceneBg('hall'); narr(`${h.name}の部屋へ家賃を受け取りに行った。`); tryScene(h, 'rentLate'); render(); return;
   }
   const amt = Math.round(rentOf(h) * (S.building >= 50 ? 1 : 0.8));
-  S.rentDone[h.id] = true; S.money += amt;
+  S.rentDone[h.id] = true; S.money += amt; sfx('coin');
   sceneBg('hall');
   narr(`${h.name}の部屋へ家賃を受け取りに行った。`);
   if (t === 0 && !st.captured) narr('（あまりいい顔はされなかった）');
@@ -1099,9 +1099,9 @@ function handAction(h, act) {
       S.inv[f.id]--; if (!S.inv[f.id]) delete S.inv[f.id];
       st.full += f.full; st.intake += f.kcal; st.gifts++; st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
       if (like) f.tags.forEach(t => { if (isLike(h, st, t)) st.known[t] = 'like'; });
-      speak(h, 'handGiftOk'); addAff(h, HG.affection); addWary(h, HG.wary);
+      sfx('gift'); speak(h, 'handGiftOk'); addAff(h, HG.affection); addWary(h, HG.wary);
       sayLine(h, ['n', `（${f.name}を受け取ってもらえた）`]);
-    } else { speak(h, 'handGiftNo'); addWary(h, HG.waryNo); }
+    } else { sfx('refuse'); speak(h, 'handGiftNo'); addWary(h, HG.waryNo); }
   }
   const added = incoming; incoming = held;
   Q = added.concat(Q); settled = false;
@@ -1452,6 +1452,7 @@ function night(silent) {
   save();
   if (silent) return rep;   // まとめて進めるとき：報告は最後にまとめて出す
   nightReport = rep;
+  sfx('night'); if (rep.events.some(e => /実績/.test(e))) setTimeout(() => sfx('achv'), 900); else if (rep.events.some(e => /体つきが変わってきた/.test(e))) setTimeout(() => sfx('stage'), 900);
   openModal('night', nightHTML(rep));
   render();
 }
@@ -1516,11 +1517,60 @@ let bgKey = '';
 function updateBg() {
   const el = $('#bg'); if (!el) return;
   const [name, kind, time] = bgOf(), key = name + kind + time;
+  bgmUpdate();
   el.classList.toggle('bright', screen === 'title' || !!(S && S.sceneBg));
   if (key === bgKey) return; bgKey = key;
   const ext = window.BG_EXT || '.png';
   el.style.backgroundImage = `url("${C.bgDir || 'bg'}/${name}${ext}"), ${fallbackBg(kind, time)}`;
 }
+
+/* ---------- BGM・効果音（v2.2。audio/bgm/*.mp3・audio/se/*.mp3。tools/audio/synth.py で合成） ---------- */
+const SND = (() => {
+  const pref = (() => { try { return Object.assign({ bgm: 0.45, se: 0.7 }, JSON.parse(localStorage.getItem('hidamari_audio') || '{}')); } catch (e) { return { bgm: 0.45, se: 0.7 }; } })();
+  const dir = 'audio/', ext = '.mp3';
+  let unlocked = false, cur = null, el = null, want = null, fadeT = null;
+  const savePref = () => { try { localStorage.setItem('hidamari_audio', JSON.stringify(pref)); } catch (e) {} };
+  function fade(a, to, ms, done) {
+    const from = a.volume, t0 = performance.now();
+    const step = () => { const k = Math.min(1, (performance.now() - t0) / ms); a.volume = Math.max(0, Math.min(1, from + (to - from) * k)); if (k < 1) requestAnimationFrame(step); else if (done) done(); };
+    requestAnimationFrame(step);
+  }
+  function play(key) {
+    want = key; if (!unlocked || key === cur) return;
+    const old = el; cur = key;
+    if (old) fade(old, 0, 700, () => { old.pause(); });
+    if (!key || pref.bgm <= 0) { el = null; return; }
+    const a = new Audio(dir + 'bgm/' + key + ext); a.loop = true; a.volume = 0; el = a;
+    a.play().then(() => fade(a, pref.bgm, 900)).catch(() => {});
+  }
+  const pool = {};
+  function se(name) {
+    if (!unlocked || pref.se <= 0) return;
+    try { const base = pool[name] || (pool[name] = new Audio(dir + 'se/' + name + ext)); const a = base.cloneNode(); a.volume = pref.se; a.play().catch(() => {}); } catch (e) {}
+  }
+  function unlock() { if (unlocked) return; unlocked = true; const w = want; cur = null; play(w); }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, unlock, { capture: true, passive: true }));
+  function setVol(kind, v) {
+    pref[kind] = v; savePref();
+    if (kind === 'bgm') { if (el) el.volume = v; if (v > 0 && !el) { const w = want; cur = null; play(w); } if (v <= 0 && el) { el.pause(); el = null; cur = null; } }
+  }
+  return { play, se, pref, setVol, get cur() { return cur; }, get playing() { return !!(el && !el.paused); } };
+})();
+const sfx = n => SND.se(n);
+// 場面に合わせた BGM：タイトル／外出先／ヒロインの部屋／時間帯（朝・昼＝日常、夕＝夕方、夜・深夜＝夜）
+function bgmUpdate() {
+  if (screen === 'title' || !S || !S.view) { SND.play('title'); return; }
+  const name = (bgOf() || [''])[0] || '';
+  if (S.sceneBg && /^(town_|univ_|eatout_|shrine_)/.test(name)) { SND.play('town'); return; }   // 出先
+  if (S.view.type === 'room') { SND.play('room'); return; }
+  const s = slotName(); SND.play(s === '朝' || s === '昼' ? 'day' : s === '夕' ? 'evening' : 'night');
+}
+window.SETTINGS_EXTRA = (window.SETTINGS_EXTRA || []).concat([() => `<h4 style="margin:12px 0 4px">音</h4>
+  <div class="row"><span>BGM</span><span><input type="range" min="0" max="100" step="5" value="${Math.round(SND.pref.bgm * 100)}" data-vol="bgm" style="width:150px"> <small class="num" id="vol_bgm">${Math.round(SND.pref.bgm * 100)}</small></span></div>
+  <div class="row"><span>効果音</span><span><input type="range" min="0" max="100" step="5" value="${Math.round(SND.pref.se * 100)}" data-vol="se" style="width:150px"> <small class="num" id="vol_se">${Math.round(SND.pref.se * 100)}</small></span></div>
+  <div class="sub">0 にすると鳴らない。この端末に記録される（セーブとは別）。</div>`]);
+document.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.vol; if (!k) return; const v = +e.target.value / 100; SND.setVol(k, v); const o = document.getElementById('vol_' + k); if (o) o.textContent = Math.round(v * 100); });
+document.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.vol === 'se') sfx('select'); });
 
 /* ---------- プロローグ（真っ暗な画面で、主人公の一人語り） ---------- */
 function showStory(pages, done) {
@@ -2560,7 +2610,7 @@ const ACT = {
     st.capBonusDay = S.day; addAff(h, 5);   // 看病の日は上限が広がる
     speak(h, st.sick.cared >= 3 ? 'homeCook' : 'giftNormal'); render();
   },
-  phoneOpen() { openModal('phone', phoneHTML()); },
+  phoneOpen() { if (unreadPhone()) sfx('phone'); openModal('phone', phoneHTML()); },
   phoneView(d) { openModal('phone', phoneHTML(+d.i)); },
   phoneReply(d) {
     const m = S.phone.log[+d.i], r = m.replies[+d.r], h = H[m.id], st = S.h[h.id]; if (m.reply != null) return;
@@ -2596,12 +2646,12 @@ const ACT = {
   doorHang(d) {
     const h = H[d.h], st = S.h[h.id], f = FOOD[d.id]; if (!h || !f || !S.inv[f.id] || (st.door && st.door.day === S.day)) return;
     S.inv[f.id]--; if (!S.inv[f.id]) delete S.inv[f.id];
-    st.door = { day: S.day, food: f.id }; closeModal();
+    st.door = { day: S.day, food: f.id }; closeModal(); sfx('gift');
     narr(`（${h.room}号室のドアノブに、${f.name}を入れた袋を掛けておいた。「管理人より。よかったらどうぞ」のメモを添えて）`); render();
   },
   refill(d) {
     const R = C.snackBox.refill[+d.i], bld = d.b; if (!R || S.money < R.price) return;
-    S.money -= R.price; (S.snackBox = S.snackBox || {})[bld] = ((S.snackBox || {})[bld] || 0) + R.kcal; shopBought = true;
+    sfx('buy'); S.money -= R.price; (S.snackBox = S.snackBox || {})[bld] = ((S.snackBox || {})[bld] || 0) + R.kcal; shopBought = true;
     openModal('shop', shopHTML()); render();
   },
   oburumai() {
@@ -2809,7 +2859,7 @@ const ACT = {
   self() { S.view = { type: 'self' }; render(); },
   empty(d) { narr(`${d.room}号室。空き部屋だ。修繕すれば入居者を募集できそうだ。（未実装）`); },
   visit(d) {
-    const h = H[d.id], st = S.h[h.id];
+    const h = H[d.id], st = S.h[h.id]; sfx('select');
     if (S.tutorial && bldOf(h) === 'apartment' && !S.tutorial.done[h.id]) {
       if (!present(h)) {
         narr(`${h.room}号室。チャイムを鳴らしたが、返事がない。…留守のようだ。`);
@@ -2835,7 +2885,7 @@ const ACT = {
     }
     if (!canVisit(st)) { narr(`${h.room}号室。…用もないのに訪ねるほどの仲ではない。（親密度${C.visitMinAffection}から訪問できる）`); return; }
     if (!st.captured && st.wary >= C.waryVisitRefuse) { speak(h, 'refuseVisit'); return; }
-    S.view = { type: 'room', id: h.id }; st.visits++;
+    S.view = { type: 'room', id: h.id }; st.visits++; sfx('door');
     const since = sinceLastText(st);
     if (since) narr(`（${since}）`);
     st.lastSeenW = st.weight;
@@ -2934,7 +2984,7 @@ const ACT = {
     const h = room(), st = S.h[h.id], f = FOOD[d.id];
     const forced = S.giftMode === 'hinata';   // 莉緒：ひなたと一緒なら、警戒に関係なく食べる
     closeModal();
-    if (!forced && !st.captured && st.wary >= C.waryGiftRefuse) { speak(h, 'wary'); render(); return; }
+    if (!forced && !st.captured && st.wary >= C.waryGiftRefuse) { sfx('refuse'); speak(h, 'wary'); render(); return; }
     dietStopCheck(h, st);
     if (!forced && st.diet) { speak(h, 'dietRefuse'); render(); return; }
     // すみれ：デザインに没頭中は、受け取ってため込む（完成の日にまとめて食べる）
@@ -2953,7 +3003,7 @@ const ACT = {
       render(); return;
     }
     const bad = f.tags.filter(t => isDislike(h, st, t));
-    if (!forced && bad.length && !favorable(st)) { bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
+    if (!forced && bad.length && !favorable(st)) { sfx('refuse'); bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
     const warmDislike = bad.length > 0;
     if (st.full + f.full > st.cap) {
       if (!eatSay(h, 'full')) speak(h, 'full'); addWary(h, C.waryOverfull);
@@ -2963,7 +3013,7 @@ const ACT = {
     S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
     const tr = eatTrack(h, st, f.id);   // 飽き・ハマり（S2）
     const kcalG = Math.round(f.kcal * giftMul(h, st, f) * (tr === 'bored' ? 0.8 : 1));
-    st.full += f.full; st.intake += kcalG; st.gifts++; (st.tagsToday = st.tagsToday || []).push(...f.tags);
+    st.full += f.full; st.intake += kcalG; st.gifts++; sfx('gift'); (st.tagsToday = st.tagsToday || []).push(...f.tags);
     aoiJealous(h);
     if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
     // 深夜の差し入れ（夜食）は、物によって胃袋（満腹ゲージの上限）が少し広がる
@@ -3039,7 +3089,7 @@ const ACT = {
     const trM = rcp ? eatTrack(h, st, 'r:' + rcp.id) : place ? eatTrack(h, st, 'p:' + place.id) : null;
     const kcal = Math.round(m.kcal * (rcp && hasFac('cooker') ? 1.2 : 1) * (trM === 'bored' ? 0.8 : 1));
     if (rcp) narr(`（${rcp.name}を作った）`);
-    S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true; if (place) (st.tagsToday = st.tagsToday || []).push(place.likeTag, ...({ jiro: ['garlic'], yakiniku: ['garlic'] }[place.id] || []));
+    S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true; sfx('eat'); if (place) (st.tagsToday = st.tagsToday || []).push(place.likeTag, ...({ jiro: ['garlic'], yakiniku: ['garlic'] }[place.id] || []));
     aoiJealous(h);
     if (d.kind === 'eatOut') {
       if (place && st.examParty && S.day - st.examParty <= 1) { st.examParty = null; addAff(h, 3); narr('（打ち上げ。今日は、とことん食べる日だ）'); }
@@ -3064,7 +3114,7 @@ const ACT = {
     advanceSlot();
   },
   job() {
-    S.money += C.partTimePay; sceneBg('famires');
+    S.money += C.partTimePay; sceneBg('famires'); sfx('coin');
     narr(`ファミレスでバイトをした。${yen(C.partTimePay)} を受け取った。`);
     if (slotName() === '夕' && C.jobLeftovers) { const f = FOOD[pick(C.jobLeftovers.foods)]; if (f) { S.inv[f.id] = (S.inv[f.id] || 0) + 1; narr(`（店長に「余っちゃったから持ってって」と、${f.name}を持たされた。差し入れに使える）`); } }
     encounter('job') || encounter('town');
@@ -3086,7 +3136,7 @@ const ACT = {
   shop() { S.shopStore = 'conveni'; shopBought = false; openModal('shop', shopHTML()); },
   buy(d) {
     const f = FOOD[d.id], pr = shopRank(S.shopStore || 'conveni') === 'vip' ? Math.round(f.price * C.regulars.vipDiscount / 10) * 10 : f.price; if (S.money < pr) return;
-    S.money -= pr; S.inv[f.id] = (S.inv[f.id] || 0) + 1; shopBought = true;
+    S.money -= pr; S.inv[f.id] = (S.inv[f.id] || 0) + 1; shopBought = true; sfx('buy');
     openModal('shop', shopHTML()); render();
   },
   cook() {
@@ -3131,10 +3181,13 @@ document.addEventListener('change', e => {
   if (el.dataset.chg === 'mybday' || el.dataset.chg === 'mybdayD') { const [m, d] = myBday().split('-'); S.myBirthday = el.dataset.chg === 'mybday' ? String(el.value).padStart(2, '0') + '-' + d : m + '-' + String(el.value).padStart(2, '0'); save(); return; }
   const st = S.h[el.dataset.id]; st.target = +el.value || null; st.targetHit = !!(st.target && st.stage >= st.target); if (!st.target) st.keep = false; save();
 });
+// 自分の効果音を鳴らす操作（ボタンの共通音を重ねない）
+const QUIET_ACT = ['visit', 'give', 'buy', 'meal', 'doorHang', 'refill'];
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b || b.disabled) return;
   const fn = ACT[b.dataset.act];
+  if (fn && !QUIET_ACT.includes(b.dataset.act)) sfx(b.dataset.act === 'close' || b.classList.contains('back') ? 'cancel' : 'select');
   if (fn && S && S.sceneBgStale) clearSceneBg();   // 次の行動に移ったら、前の出先の背景を戻す
   if (fn) fn(b.dataset);
 });
@@ -3148,6 +3201,6 @@ function start(data) {
 }
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 // 自動テスト用の窓口（ゲームの動作には影響しない）
-window.__hidamari = { get S() { return S; }, ACT, H, C, D, SC, night: s => night(s), render: () => render(), stage: id => stageOf(H[id], S.h[id].weight), tier: a => tierOf(a), HS: () => HS().map(h => h.id) };
+window.__hidamari = { get S() { return S; }, ACT, H, C, D, SC, night: s => night(s), render: () => render(), stage: id => stageOf(H[id], S.h[id].weight), tier: a => tierOf(a), HS: () => HS().map(h => h.id), SND };
 })();
 </script>
