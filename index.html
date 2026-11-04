@@ -769,7 +769,7 @@ function lowNotice(h, st) {
   const ds = st.stage - st.noticeStage, dc = cl && st.noticeClothes && cl !== st.noticeClothes;
   const bigger = dc && cl.split(',').reduce((a, v, i) => a + (+v - +(st.noticeClothes.split(',')[i] || 0)), 0) > 0;
   st.noticeStage = st.stage; st.noticeClothes = cl;
-  const L = D.commonLines || {}, nm = shortName(h), lines = [];
+  const L = Object.assign({}, D.commonLines || {}, ...['lowNoticeStage', 'lowNoticeBig', 'lowNoticeDown', 'lowNoticeClothes', 'lowNoticeClothesDown'].filter(k => h.lines && h.lines[k]).map(k => ({ [k]: h.lines[k] }))), nm = shortName(h), lines = [];   // キャラ専用があれば優先
   if (ds >= 2) lines.push(pick(L.lowNoticeBig || []));
   else if (ds === 1) lines.push(pick(L.lowNoticeStage || []));
   else if (ds < 0) lines.push(pick(L.lowNoticeDown || []));
