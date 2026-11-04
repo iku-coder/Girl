@@ -301,14 +301,15 @@ window.GAME_DATA = {
       { id: 'shotengai', name: '商店街',     note: '昼・夕・買い出し', slots: ['昼', '夕'], store: true, bg: 'shotengai' },
       { id: 'depa',      name: 'デパート',   note: '昼・夕・買い出し', slots: ['昼', '夕'], store: true, bg: 'depa' },
       { id: 'sento',     name: '銭湯',       note: '夕・夜（休日は朝も）', slots: ['夕', '夜'], weekendMorning: true },
-      { id: 'shrine',    name: '陽守神社',   note: '昼・夕・お供え', slots: ['昼', '夕'] }
+      { id: 'shrine',    name: '陽守神社',   note: '昼・夕・お供え', slots: ['昼', '夕'] },
+      { id: 'chonaikai', name: '町内会の集会所', note: '昼・夕・町内会の行事', slots: ['昼', '夕'], bg: 'town' }
     ],
     // 攻略ペース（v2.1・攻略ペース調整 仕様案）：段階7〜8で攻略になるよう、親密度の増え方を抑える。減る分には掛けない
     affGainRate: 0.5,                         // すべての増加に掛ける
     affTierRate: [1.0, 0.8, 0.6, 0.4],        // よそよそしい・顔なじみ・好意・特別
     affDailyCap: [3, 2.5, 2, 1],              // ヒロインごとの1日の増加の上限（段階別）
     affCapBonus: 3,                           // 行事・誕生日・ホワイトデー・看病・一度きりの身の上話がある日は上限+3
-    affDecay: { days: 3, amount: 1, minTier: 1 },   // 3日続けて会わないと、4日目から毎晩−1（段階の下端より下げない・攻略済みは下がらない）。minTier 1＝よそよそしい段階では下げない（住人19人だと会う機会が足りず、0から抜け出せないため）
+    affDecay: { days: 5, amount: 1, minTier: 1 },   // 3日続けて会わないと、4日目から毎晩−1（段階の下端より下げない・攻略済みは下がらない）。minTier 1＝よそよそしい段階では下げない（住人19人だと会う機会が足りず、0から抜け出せないため）
     startAffection: { rate: 0.25, max: 10, override: { aoi: 35 } },   // 初期の親密度＝今の値×0.25（最大10）。葵だけ35
     // 身体の変化（v2.1・身体の変化 仕様案）。段階のグループ 1〜4／5〜8／9〜12／13〜15 を 0〜3 で表す。文は短く、生々しくしない
     body: {
@@ -346,6 +347,24 @@ window.GAME_DATA = {
       attitude: { 1: '本人は「ちょっと汗っかきなだけ」と、気づいていないふりをしている', 2: '本人はかなり気にしていて、会う前にシャワーを浴びたり、近づかれるのを嫌がったりする', 3: '本人はもう気にしていない。冗談にして笑っている' },
       hide: '親しくない相手には隠そうとしている（デオドラントを増やす、長袖を着る など）',
       careItems: ['care_cream', 'care_deo', 'care_spats', 'care_mint']
+    },
+    // v2.3：外のヒロイン（アパート・マンションに住まない。heroines[].building: 'outside'・place）。会える場所ごとの設定
+    //   outing＝外出のどこで会うか（null は特別な会い方：delivery＝荷物が届いたとき、post＝朝の掃除）。food＝その場で一緒に食べるもの（1日1回）
+    outside: {
+      meetAffection: 3,                            // 会って話したときの親密度（倍率・上限はほかと同じ）
+      places: {
+        shrine:    { label: '陽守神社',             outing: 'shrine',    bg: 'shrine',    food: { name: 'おさがりのいなり寿司とお神酒', kcal: 600,  full: 16, price: 0,   tag: 'meal' } },
+        job:       { label: 'ファミレス（バイト先）', outing: 'job',       bg: 'famires',   food: { name: '閉店後のまかない',             kcal: 900,  full: 26, price: 0,   tag: 'fried', slots: ['夕', '夜'] } },
+        sento:     { label: '松の湯の番台',         outing: 'sento',     bg: 'sento',     food: { name: '湯上がりのコーヒー牛乳とアイス', kcal: 400,  full: 10, price: 300, tag: 'sweet' } },
+        depa:      { label: 'デパ地下の洋菓子売り場', outing: 'depa',      bg: 'depa',      food: { name: '試食のケーキ（味見）',         kcal: 450,  full: 10, price: 0,   tag: 'sweet' } },
+        delivery:  { label: 'アパートの前（配達）',   outing: null,        bg: 'entrance',  food: { name: '冷たい飲み物とおにぎり',       kcal: 350,  full: 10, price: 300, tag: 'meal' } },
+        post:      { label: '郵便受けの前（配達）',   outing: null,        bg: 'entrance',  food: { name: '配達先でもらったお菓子のおすそわけ', kcal: 250, full: 6, price: 0, tag: 'sweet' } },
+        chonaikai: { label: '町内会の集会所',       outing: 'chonaikai', bg: 'town',      food: { name: '炊き出しのとん汁とおにぎり',   kcal: 800,  full: 22, price: 0,   tag: 'meal' } },
+        super:     { label: 'まるとくマート',       outing: 'super',     bg: 'super',     food: { name: '値引きの惣菜と缶ビール',       kcal: 900,  full: 24, price: 600, tag: 'fried' } },
+        conveni:   { label: 'ひだまりマート',       outing: 'conveni',   bg: 'supermarket', food: { name: '新作スイーツとホットスナックの味見', kcal: 600, full: 16, price: 400, tag: 'fried' } }
+      },
+      postChance: 0.35,                            // 平日の朝の掃除で、郵便配達に会う確率
+      deliveryChance: 0.4                          // 荷物を預かったとき、配達員に会う確率（同じ人に会うのは1日1回まで）
     },
     // v2.2：深夜の訪問・チートデイ・外食のコース
     lateVisitAffection: 70,                       // 深夜に訪ねられる親密度（攻略済みは常に）
@@ -726,6 +745,9 @@ window.GAME_DATA = {
     lateMeal_jiro: ['こんな時間にラーメン…背徳の味だね', '夜中のニンニク、明日のことは考えないことにする', 'スープまで飲んじゃった。…夜中なのに'],
     lateMeal_famires: ['深夜のファミレスって、なんでこんなにおいしいんだろ', 'この時間のドリンクバー、なんだか特別な感じ', '夜中のパフェ…罪の味がする'],
     lateMeal: ['夜食って、どうしてこんなに罪の味がするんだろうね'],
+    // v2.3：外のヒロイン（キャラ固有は heroines[].lines で上書き）
+    greetOut: [['あ、どうも'], ['あら、こんにちは'], ['来てくれたんだ'], ['待ってた']],
+    outFood: [['…じゃあ、少しだけ'], ['いいの？ いただきます'], ['一緒に食べるの、楽しいね'], ['あなたと食べると、なんでもおいしい']],
     // v2.2：部屋に入れない親密度の人の変化に、次に会ったとき主人公が気づく（地の文。{name}＝下の名前）
     lowNoticeStage: ['（…{name}さん、前に会ったときより、ふっくらした気がする）', '（頬のあたりが、少し丸くなったような…？）', '（気のせいかな。{name}さん、少し柔らかい雰囲気になった）', '（観察眼に映る数字が、前より増えている。…やっぱり、ふっくらしたんだ）'],
     lowNoticeBig: ['（…{name}さん、しばらく見ないうちに、ずいぶんふくよかになった）', '（思わず二度見した。{name}さん、前よりひと回り大きくなっている）'],
