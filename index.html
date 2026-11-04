@@ -948,6 +948,7 @@ const decode = t => JSON.parse(decodeURIComponent(escape(atob(t.trim()))));
 
 function addAff(h, d) {
   const st = S.h[h.id], t0 = tierOf(st.aff);
+  if (d < 0 && window.__affLog) window.__affLog.push([h.id, d, ((new Error().stack || '').split('\n')[2] || '').trim().replace(/\(.*index\.html:/, '(L').slice(0, 60)]);   // テスト用
   if (d > 0) {
     // 攻略ペース：全体の倍率 × 段階ごとの倍率 × 難易度、1日の上限（v2.1）
     d = d * (C.affGainRate == null ? 1 : C.affGainRate) * ((C.affTierRate || [])[t0] == null ? 1 : C.affTierRate[t0]) * diffOf().aff;
@@ -960,6 +961,7 @@ function addAff(h, d) {
   }
   st.aff = clamp(Math.round((st.aff + d) * 10) / 10, 0, 100);
   const t1 = tierOf(st.aff);
+  if (t1 > (st.affTopTier || 0)) st.affTopTier = t1;   // 届いたいちばん上の段階（会わない日の減少の下端）
   // 会話シーンの途中なら、関係の変化と攻略はシーンが終わってから出す
   const later = f => (inScene ? sceneNotes.push(f) : f());
   if (t1 > t0) later(() => { sfx('heart'); narr(`（${h.name}との関係が「${D.affectionTiers[t1].name}」になった）`); });
@@ -1387,7 +1389,9 @@ function night(silent) {
     // 会わない日が続くと少し下がる（v2.1）
     { const AD = C.affDecay; if (AD && st.met && !st.captured && !st.sick && !(st.away && S.day <= st.away.until) && !(st.family && S.day - st.family.day <= 1)) {
       const gap = S.day - (st.lastSeen == null ? S.day : st.lastSeen);
-      if (gap >= AD.days && tierOf(st.aff) >= (AD.minTier || 0)) { const floor = (D.affectionTiers[tierOf(st.aff)] || { min: 0 }).min; st.aff = Math.max(floor, st.aff - AD.amount); } } }
+      // 下端は「これまでに届いたいちばん上の段階」で決める（ほかの理由で一度下がっても、会わないだけでは段階を落とさない）
+      const top = Math.max(st.affTopTier || 0, tierOf(st.aff)), floor = (D.affectionTiers[top] || { min: 0 }).min;
+      if (gap >= AD.days && top >= (AD.minTier || 0) && st.aff > floor) st.aff = Math.max(floor, st.aff - AD.amount); } }
     doorNight(h, st, rep);   // F1 ドアノブの差し入れ
     if (!st.diet && !(st.away && S.day <= st.away.until)) { if (hasFac('vending') && bldOf(h) === 'apartment') st.intake += C.vending.kcal; st.intake += townSnack(h, st); }   // F5
     // ダイエットとリバウンド
