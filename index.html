@@ -530,6 +530,25 @@ window.EXTRA = {}; window.addExtra = (id, o) => { const e = window.EXTRA[id] = w
 <script src="scenes/v21/rin.js"></script>
 <script src="scenes/v21/karen.js"></script>
 <script src="scenes/v21/himeka.js"></script>
+<script src="scenes/v22/hinata.js"></script>
+<script src="scenes/v22/saya.js"></script>
+<script src="scenes/v22/reina.js"></script>
+<script src="scenes/v22/sayuri.js"></script>
+<script src="scenes/v22/akane.js"></script>
+<script src="scenes/v22/kotori.js"></script>
+<script src="scenes/v22/yukino.js"></script>
+<script src="scenes/v22/rio.js"></script>
+<script src="scenes/v22/rei.js"></script>
+<script src="scenes/v22/shiori.js"></script>
+<script src="scenes/v22/aoi.js"></script>
+<script src="scenes/v22/mariko.js"></script>
+<script src="scenes/v22/sumire.js"></script>
+<script src="scenes/v22/mio.js"></script>
+<script src="scenes/v22/nagisa.js"></script>
+<script src="scenes/v22/chihaya.js"></script>
+<script src="scenes/v22/rin.js"></script>
+<script src="scenes/v22/karen.js"></script>
+<script src="scenes/v22/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -2691,7 +2710,7 @@ const ACT = {
     const h = room(), st = S.h[h.id]; if (!canVisit(st) || st.cheatMonth === cheatYm() || isCheat(st)) return;
     st.cheat = S.day; st.cheatMonth = cheatYm();
     if (st.habitDay0 == null) st.habitDay0 = st.habit; if (st.capDay0 == null) st.capDay0 = st.cap;
-    sfx('heart'); speak(h, 'cheatDay'); narr(`（今日は${shortName(h)}のチートデイ。満腹の上限が ${st.cap} → ${capOf(st)} になった。今日の食習慣と胃袋の伸びは2倍、深夜の夜食は1.5倍）`); render();
+    sfx('heart'); speak(h, st.route && (st.captured || tierOf(st.aff) >= 3) && h.lines['cheatDay_' + st.route] ? 'cheatDay_' + st.route : 'cheatDay');   // 姫華はルートで出し分け narr(`（今日は${shortName(h)}のチートデイ。満腹の上限が ${st.cap} → ${capOf(st)} になった。今日の食習慣と胃袋の伸びは2倍、深夜の夜食は1.5倍）`); render();
   },
   keepToggle() { const h = room(), st = S.h[h.id]; st.keep = !st.keep; if (st.keep) speak(h, 'keepOn'); render(); },
   setDiff(d) { S.diff = d.k; save(); openModal('settings', settingsHTML()); render(); },
