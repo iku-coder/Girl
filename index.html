@@ -39,14 +39,16 @@ button{font:inherit;color:inherit}
 .muted{color:var(--muted)}
 
 /* header */
-#hdr{display:flex;align-items:center;gap:10px;padding-block:4px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+#hdr{display:flex;align-items:center;gap:8px;padding-block:4px 10px;border-bottom:1px solid var(--line);flex-wrap:nowrap;min-width:0}
 .day{font-family:var(--display);font-size:20px;line-height:1}
 .day small{font-family:var(--body);font-size:12px;margin-left:2px;color:var(--muted)}
 .dow{font-size:13px;color:var(--muted)}
 .pips{display:flex;gap:3px}
-.pip{font-size:12px;padding:1px 7px;border-radius:4px;color:var(--muted);border:1px solid var(--line)}
+.pip{font-size:11.5px;padding:1px 5px;border-radius:4px;color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.pips{flex:0 1 auto;min-width:0}
 .pip.now{background:var(--lamp);color:var(--ink);border-color:var(--lamp);font-weight:700}
 .pip.past{opacity:.35}
+@media (max-width:380px){#hdr .dow{display:none}.pip{padding:1px 4px}}
 .money{margin-left:auto;font-weight:700}
 .icon{background:none;border:1px solid var(--line);border-radius:6px;width:34px;height:30px;cursor:pointer}
 
@@ -124,6 +126,11 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .roominfo{margin-top:12px;background:rgba(23,24,31,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .roster{display:grid;margin-top:8px}
 .rrow.link{cursor:pointer}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
+.card3{border:1px solid var(--line);border-radius:8px;padding:7px 6px;display:flex;flex-direction:column;gap:2px;background:var(--panel);min-width:0}
+.card3 b{font-size:13px;font-weight:600;line-height:1.3;word-break:break-all}.card3 small{font-size:10.5px;color:var(--muted);line-height:1.35}
+.card3 .num{font-size:12.5px;margin-top:auto}.card3 .mini{width:100%;margin-top:3px}.card3 .chip{align-self:flex-start}
+.card3.over{opacity:.55}.card3 .up{color:#e0915a}
 .item.pick{width:100%;text-align:left;background:none;color:inherit;font:inherit;border:0;border-bottom:1px solid var(--line);cursor:pointer}
 .item.pick.on{background:var(--panel2)}.item.pick.on .num{color:var(--lamp);font-weight:700}
 .gal{margin-top:10px}.gthumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:4px}
@@ -449,6 +456,8 @@ const rinShift = (day = S.day) => ((day - 1) % 4 + 4) % 4;
 const present = h => {
   const st = S && S.h && S.h[h.id];
   if (st && st.away && S.day <= st.away.until) return false;   // 留守（栞の夫の一時帰国など）
+  // 深夜：会えるのは攻略した住人だけ（夜に部屋にいる人。真理子は仕事帰り）
+  if (slotName() === '深夜') return !!(st && st.captured) && (h.id === 'mariko' || (h.id === 'rin' ? RIN_SHIFT[rinShift()].includes('夜') : (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes('夜')));
   if (h.id === 'rin') return RIN_SHIFT[rinShift()].includes(slotName());
   return (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes(slotName());
 };
@@ -1007,6 +1016,8 @@ function doAdvance() {
   dropStaleFigure();   // 時間が進んだら、前の会話の立ち絵は下げる
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼' && !S.tutorial) rollPackages();
+  // 深夜になったら自室へ。寝るか料理をすると、その日の集計へ
+  if (slotName() === '深夜') { S.view = { type: 'self' }; S.sceneBg = null; narr('（夜も更けた。101号室に戻った。…寝るか、台所に立つか）'); }
   save();   // 時間が進むたびに自動セーブ
   render();
   if (S.tutorial) tutorialProgress(false);
@@ -1115,7 +1126,7 @@ function night() {
 /* ---------- 背景絵 ----------
    ファイル：bg/<名前>.png（公開版は window.BG_EXT で軽い形式に）。名前は「背景絵_一覧とプロンプト」のとおり。
    画像がない・読み込めないときは、時間帯の空の色と建物のシルエットで代わりに描く */
-const TIME_EN = { 朝: 'morning', 昼: 'noon', 夕: 'evening', 夜: 'night' };
+const TIME_EN = { 朝: 'morning', 昼: 'noon', 夕: 'evening', 夜: 'night', 深夜: 'night' };
 const SKY = {
   morning: ['#a9d3ee', '#f3e6c8', '#e9c98f'], noon: ['#6fb3e8', '#cfe7f7', '#9dc07a'],
   evening: ['#3b3a6b', '#f08a4b', '#7a4a3a'], night: ['#0d1430', '#26305a', '#1b1d2a']
@@ -1369,17 +1380,17 @@ function selfHTML() {
   const acts = [
     { act: 'uni', label: '大学へ行く', note: '平日の朝・昼', ok: !isWeekend() && (s === '朝' || s === '昼') },
     { act: 'job', label: 'バイトに行く', note: `昼・夕／${yen(C.partTimePay)}`, ok: s === '昼' || s === '夕' },
-    { act: 'manage', label: s === '朝' || s === '夕' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `出かける住人と会えるかも／状態 +${C.manageGain}` : s === '夕' ? `帰ってくる住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: true },
-    { act: 'shop', label: '買い出し', note: '差し入れを買う（夜以外）', ok: s !== '夜' },
-    { act: 'cook', label: '料理の練習', note: `夕・夜／${yen(C.cookPracticeCost)}／腕 ${S.cook}`, ok: (s === '夕' || s === '夜') && S.cook < cookMax() && S.money >= C.cookPracticeCost },
+    { act: 'manage', label: s === '朝' || s === '夕' ? '敷地の掃除' : '管理業務', note: s === '朝' ? `出かける住人と会えるかも／状態 +${C.manageGain}` : s === '夕' ? `帰ってくる住人と会えるかも／状態 +${C.manageGain}` : `掃除と修繕／状態 +${C.manageGain}`, ok: s !== '深夜' },
+    { act: 'shop', label: '買い出し', note: '差し入れを買う（夜・深夜以外）', ok: s !== '夜' && s !== '深夜' },
+    { act: 'cook', label: '料理の練習', note: `${s === '深夜' ? 'その日の集計へ' : '夕・夜・深夜'}／${yen(C.cookPracticeCost)}／腕 ${S.cook}`, ok: (s === '夕' || s === '夜' || s === '深夜') && S.cook < cookMax() && S.money >= C.cookPracticeCost },
     { act: 'inviteOpen', label: '部屋に呼ぶ', note: `夕・夜／攻略した住人を101号室に`, ok: (s === '夕' || s === '夜') && HS().some(h => S.h[h.id].captured) },
-    { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `夕・夜／${prepN()}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜') && S.cook >= C.prepFrom },
+    { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `${s === '深夜' ? 'その日の集計へ' : '夕・夜・深夜'}／${prepN()}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜' || s === '深夜') && S.cook >= C.prepFrom },
     { act: 'partyOpen', label: '食事会を開く', note: hasFac('nabe') ? `夕・夜／${yen(C.party.price)}／最大${partyMax()}人` : '設備の「大鍋とカセットコンロ」が必要', ok: (s === '夕' || s === '夜') && hasFac('nabe') && S.money >= C.party.price && partyCands().length > 0 },
     ...(S.h.chihaya && S.h.chihaya.met && active(H.chihaya) ? [{ act: 'offerOpen', label: '神社にお供えする', note: '昼・夕／千早が「おさがり」としていただく', ok: (s === '昼' || s === '夕') && invCount() > 0 && SPX().offerDay !== S.day }] : []),
     { act: 'facOpen', label: '設備・修繕', note: `冷蔵庫・こたつ・修繕など（${(C.facilities || []).filter(f => hasFac(f.id)).length}/${(C.facilities || []).length}）`, ok: true },
     ...bdayToday().map(h => ({ act: 'bday', id: h.id, label: `${shortName(h)}の誕生日を祝う`, note: `ケーキを持って部屋へ／${yen(C.birthday.price)}`, ok: S.money >= C.birthday.price, primary: true })),
     ...seasonsToday().map(e => ({ act: 'seasonOpen', id: e.id, label: e.label, note: `${e.name}・1年に1回`, ok: true, primary: true })),
-    { act: 'rest', label: s === '夜' ? '寝る' : 'ひと休み', note: s === '夜' ? '1日を終える' : '次の時間帯へ', ok: true, primary: s === '夜' }
+    { act: 'rest', label: s === '深夜' ? '寝る' : 'ひと休み', note: s === '深夜' ? '1日を終える（その日の集計へ）' : s === '夜' ? '深夜へ' : '次の時間帯へ', ok: true, primary: s === '深夜' }
   ];
   const bb = S.bankbook === 'ready' ? `<button class="btn primary wide" data-act="bankbook">祖父の押し入れを調べる<small>時間は進まない</small></button>`
     : S.bankbook === 'found' ? `<button class="btn primary wide" data-act="buildMansion">隣の敷地にマンションを建てる<small>${esc(MAN.name || 'マンション')}・3階建て12室</small></button>` : '';
@@ -1461,16 +1472,17 @@ function roomHTML(h) {
   const st = S.h[h.id], t = tierOf(st.aff), s = slotName();
   const known = Object.entries(st.known);
   const eo = D.meals.eatOut, hc = D.meals.homeCook;
-  const eoOk = !st.ate && st.aff >= eo.minAffection && eo.slots.includes(s) && S.money >= eo.price;
+  const RS = (D.restaurants || []).filter(r => r.slots.includes(s)), minP = RS.length ? Math.min(...RS.map(r => r.price)) : eo.price;
+  const eoOk = !st.ate && st.aff >= eo.minAffection && RS.length && S.money >= minP;
   const hcOk = !st.ate && st.aff >= hc.minAffection && hc.slots.includes(s) && knownRecipes().some(r => S.money >= r.cost);
-  const eoNote = st.aff < eo.minAffection ? `親密度${eo.minAffection}以上` : st.ate ? '今日はもう食べた' : `${eo.slots.join('・')}／${yen(eo.price)}`;
+  const eoNote = st.aff < eo.minAffection ? `親密度${eo.minAffection}以上` : st.ate ? '今日はもう食べた' : !RS.length ? 'この時間は開いている店がない' : `店を選ぶ／${yen(minP)}〜`;
   const hcNote = st.aff < hc.minAffection ? `親密度${hc.minAffection}以上` : st.ate ? '今日はもう食べた' : `${hc.slots.join('・')}／${knownRecipes().length}品から選ぶ`;
   // 立ち絵を大きく（足は床に）、右に観察眼のステータス。行動ボタンはそのすぐ下、詳しい情報はさらに下
   return `<div class="roomstage"><div class="fig">${stageFig(h, st)}</div>${statsCard(h, st)}</div>
     <div class="acts roomacts">
       <button class="btn" data-act="talk" ${st.talked ? 'disabled' : ''}>話す<small>${st.talked ? '今日はもう話した' : '親密度が上がる'}</small></button>
       <button class="btn" data-act="giftOpen" ${invCount() ? '' : 'disabled'}>差し入れ<small>${invCount() ? `手持ち ${invCount()}個` : '手持ちなし'}</small></button>
-      <button class="btn" data-act="meal" data-kind="eatOut" ${eoOk ? '' : 'disabled'}>${eo.label}<small>${eoNote}</small></button>
+      <button class="btn" data-act="eatOutMenu" ${eoOk ? '' : 'disabled'}>${eo.label}<small>${eoNote}</small></button>
       <button class="btn" data-act="cookMenu" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
       ${h.id === 'shiori' && st.aff >= 35 ? `<button class="btn" data-act="lesson" ${S.cook >= 2 && st.lessonDay !== S.day ? '' : 'disabled'}>料理を教える<small>${S.cook < 2 ? '料理の腕2から' : st.lessonDay === S.day ? '今日はもう教えた' : '一緒に作って、二人で食べる・時間が進む'}</small></button>` : ''}
       ${h.id === 'rio' && S.h.hinata && S.h.hinata.aff >= 70 ? `<button class="btn" data-act="giftOpenH" ${invCount() ? '' : 'disabled'}>ひなたと一緒に食べる<small>${invCount() ? 'ひなたの「一緒に食べよ？」は断れない' : '手持ちなし'}</small></button>` : ''}
@@ -1530,20 +1542,21 @@ $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && moda
 
 function shopHTML() {
   return `<h3>コンビニ・スーパー</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>${shopBought ? '　戻ると時間が進む' : ''}</div>
-    ${D.foods.map(f => `<div class="item"><div>${esc(f.name)}<small>${f.kcal}kcal・満腹+${f.full}・${f.tags.map(t => C.tagNames[t] || t).join('/')}</small></div>
-      <span class="num">${yen(f.price)}<small>所持 ${S.inv[f.id] || 0}</small></span>
-      <button class="mini" data-act="buy" data-id="${f.id}" ${S.money < f.price ? 'disabled' : ''}>買う</button></div>`).join('')}
+    <div class="grid3">${D.foods.map(f => `<div class="card3"><b>${esc(f.name)}</b><small>${f.kcal}kcal・満腹+${f.full}</small><small>${f.tags.map(t => C.tagNames[t] || t).join('/')}${f.night ? `・夜食で胃袋+${f.night}` : ''}</small>
+      <span class="num">${yen(f.price)} <small>所持${S.inv[f.id] || 0}</small></span>
+      <button class="mini" data-act="buy" data-id="${f.id}" ${S.money < f.price ? 'disabled' : ''}>買う</button></div>`).join('')}</div>
     <button class="btn primary close" data-act="close">${shopBought ? 'アパートに戻る' : 'やめる'}</button>`;
 }
 function giftHTML(h) {
   const st = S.h[h.id];
-  return `<h3>${esc(h.name)}に差し入れ</h3><div class="sub">満腹 <span class="num">${st.full}／${st.cap}</span></div>
-    ${Object.entries(S.inv).map(([id, n]) => {
+  const late = slotName() === '深夜';
+  return `<h3>${esc(h.name)}に差し入れ</h3><div class="sub">満腹 <span class="num">${st.full}／${st.cap}</span>${late ? '・深夜（夜食は物によって胃袋が広がる）' : ''}</div>
+    <div class="grid3">${Object.entries(S.inv).map(([id, n]) => {
       const f = FOOD[id];
       const mark = f.tags.some(t => st.known[t] === 'like') ? '<span class="chip like">好き</span>' : f.tags.some(t => st.known[t] === 'dislike') ? '<span class="chip warn">苦手</span>' : '';
-      return `<div class="item"><div>${esc(f.name)} ${mark}<small>${f.kcal}kcal・満腹+${f.full}</small></div><span class="num">×${n}</span>
-        <button class="mini" data-act="give" data-id="${id}">渡す</button></div>`;
-    }).join('')}
+      return `<div class="card3 ${st.full + f.full > st.cap ? 'over' : ''}"><b>${esc(f.name)}</b>${mark}<small>${f.kcal}kcal・満腹+${f.full}</small>${late && f.night ? `<small class="up">夜食：胃袋+${f.night}</small>` : ''}
+        <span class="num">×${n}</span><button class="mini" data-act="give" data-id="${id}">渡す</button></div>`;
+    }).join('')}</div>
     <button class="btn close" data-act="close">やめる</button>`;
 }
 function nightHTML(rep) {
@@ -1918,6 +1931,7 @@ const ACT = {
       }
       tutorialRent(h); return;
     }
+    if (slotName() === '深夜' && !st.captured) { narr(`${h.room}号室。…深夜だ。こんな時間に訪ねられるのは、特別な関係の住人だけだ。`); return; }
     if (!present(h)) {
       if (st.away && S.day <= st.away.until) { narr(st.away.text || `${h.room}号室。…今は訪ねられない。`); return; }
       narr(`${h.room}号室。…留守のようだ。` + (canVisit(st) ? (h.id === 'rin' ? '（交代制勤務。日によって在室の時間が変わる）' : `（在室しやすい時間：${schedText(h)}）`) : '')); return;
@@ -2016,6 +2030,8 @@ const ACT = {
     st.full += f.full; st.intake += kcalG; st.gifts++;
     aoiJealous(h);
     if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
+    // 深夜の差し入れ（夜食）は、物によって胃袋（満腹ゲージの上限）が少し広がる
+    if (slotName() === '深夜' && f.night && st.cap < C.maxCapacity) { st.cap = Math.min(C.maxCapacity, st.cap + f.night); narr(`（深夜の${f.name}。…胃袋が少し広がった気がする。満腹の上限 +${f.night}）`); }
     if (h.id === 'karen' && karenCheat(st)) narr('（今日はチートデイ。差し入れはいつもの倍、おいしく食べてもらえる）');
     if (h.id === 'aoi' && st.yake === S.day) narr('（やけ食いの勢いで、いつもより多く食べている）');
     // 双子のおすそわけ（もう1人が部屋にいるとき）
@@ -2059,11 +2075,23 @@ const ACT = {
         <span class="num">${yen(r.cost)}</span><button class="mini" data-act="meal" data-kind="homeCook" data-recipe="${r.id}" data-id="${h.id}" ${S.money >= r.cost ? '' : 'disabled'}>作る</button></div>`).join('')}
       <button class="btn close" data-act="close">やめる</button>`);
   },
+  eatOutMenu() {
+    const h = room(), st = S.h[h.id], s = slotName();
+    openModal('eatout', `<h3>${esc(h.name)}を外食に誘う</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>・満腹 <span class="num">${st.full}／${st.cap}</span></div>
+      <div class="grid3">${(D.restaurants || []).filter(r => r.slots.includes(s)).map(r => {
+        const like = (h.likes || []).includes(r.likeTag) || (st.acquired || {})[r.likeTag];
+        return `<div class="card3 ${st.full + r.full > st.cap ? 'over' : ''}"><b>${esc(r.name)}</b>${like && st.known && st.known[r.likeTag] === 'like' ? '<span class="chip like">好き</span>' : ''}
+          <small>${r.kcal}kcal・満腹+${r.full}</small><span class="num">${yen(r.price)}</span>
+          <button class="mini" data-act="meal" data-kind="eatOut" data-place="${r.id}" ${S.money >= r.price ? '' : 'disabled'}>誘う</button></div>`; }).join('')}</div>
+      <button class="btn close" data-act="close">やめる</button>`);
+  },
   meal(d) {
     if (modalKind === 'cook') { modalKind = 'cookDone'; closeModal(); }
+    if (modalKind === 'eatout') { modalKind = null; $('#modal').hidden = true; $('#modal').innerHTML = ''; }
     const h = d.id ? H[d.id] : room(), st = S.h[h.id], base = D.meals[d.kind];
     const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
-    const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : base;
+    const place = d.place ? (D.restaurants || []).find(r => r.id === d.place) : null;
+    const m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : place ? Object.assign({}, base, place) : base;
     dietStopCheck(h, st);
     if (st.diet && !st.captured) { speak(h, 'dietRefuse'); render(); return; }
     if (st.full + m.full > st.cap) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
@@ -2071,7 +2099,10 @@ const ACT = {
     if (rcp) narr(`（${rcp.name}を作った）`);
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;
     aoiJealous(h);
-    if (d.kind === 'eatOut') sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
+    if (d.kind === 'eatOut') {
+      if (place) { sceneBg(place.bg); narr(`（${h.name}と、${place.name}へ行った）`); if ((h.likes || []).includes(place.likeTag) || (st.acquired || {})[place.likeTag]) { addAff(h, 2); st.known[place.likeTag] = 'like'; } }
+      else sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
+    }
     st.habit = clamp(st.habit + m.habit, 0, 1);
     speak(h, d.kind); addAff(h, m.affection); stretch(h);
     narr(d.kind === 'eatOut' ? '（ふたりで食事をして、部屋まで送った）' : S.invite ? '（101号室のちゃぶ台で、ふたりで食卓を囲んだ）' : '（ふたりで食卓を囲んだ）');
@@ -2127,7 +2158,7 @@ const ACT = {
     advanceSlot();
   },
   rest() {
-    if (slotName() === '夜') {
+    if (slotName() === '深夜') {
       const mk = H.mariko, ms = S.h.mariko, rn = H.rin, rs = S.h.rin;
       if (rn && rs && rs.met && active(rn) && !rs.captured && rinShift() === 2 && rs.stakeDay !== S.day && Math.random() < 0.3 && pickScene(rn, 'stakeout')) {
         rs.stakeDay = S.day; narr('（コンビニへ行こうと外に出ると、電柱の陰に見覚えのある人影があった）'); tryScene(rn, 'stakeout');

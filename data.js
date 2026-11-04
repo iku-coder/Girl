@@ -10,8 +10,8 @@ window.GAME_DATA = {
     apartmentName: 'ひだまり荘',
     bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v1.6',
-    slots: ['朝', '昼', '夕', '夜'],
+    version: '試作版 v1.7',
+    slots: ['朝', '昼', '夕', '夜', '深夜'],   // v1.7 深夜を追加：深夜になると自室へ戻り、寝るか料理をするとその日の集計へ
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
 
@@ -281,7 +281,35 @@ window.GAME_DATA = {
     { id: 'chips',     name: 'ポテトチップス',   price: 160, kcal: 550,  full: 14, tags: ['snack'] },
     { id: 'nikuman',   name: '肉まん',           price: 150, kcal: 250,  full: 10, tags: ['meal'] },
     { id: 'karaage',   name: 'からあげ弁当',     price: 550, kcal: 900,  full: 30, tags: ['fried', 'meal'] },
-    { id: 'beerset',   name: 'ビールとつまみ',   price: 600, kcal: 700,  full: 16, tags: ['alcohol', 'fried'] }
+    { id: 'beerset',   name: 'ビールとつまみ',   price: 600, kcal: 700,  full: 16, tags: ['alcohol', 'fried'], night: 1 },
+    // v1.7 追加。night＝深夜に差し入れると、満腹ゲージの上限がこの分だけ広がる（夜食は胃袋を育てる）
+    { id: 'cupramen',  name: 'カップラーメン',       price: 220,  kcal: 450,  full: 14, tags: ['meal', 'snack'], night: 1 },
+    { id: 'famichiki', name: 'ホットスナックのチキン', price: 230, kcal: 300,  full: 8,  tags: ['fried', 'snack'] },
+    { id: 'daifuku',   name: '豆大福',               price: 160,  kcal: 250,  full: 8,  tags: ['sweet'] },
+    { id: 'potatol',   name: 'フライドポテトL',      price: 400,  kcal: 520,  full: 14, tags: ['fried', 'snack'], night: 1 },
+    { id: 'pan5',      name: '菓子パン5個',          price: 650,  kcal: 1600, full: 30, tags: ['sweet'] },
+    { id: 'katsudon',  name: 'カツ丼',               price: 700,  kcal: 1100, full: 32, tags: ['fried', 'meal'], night: 1 },
+    { id: 'gyudon',    name: '特盛り牛丼',           price: 900,  kcal: 1300, full: 36, tags: ['meal'], night: 2 },
+    { id: 'burger',    name: '特大ハンバーガーセット', price: 1100, kcal: 1500, full: 38, tags: ['fried', 'meal'], night: 2 },
+    { id: 'icefamily', name: 'アイスのファミリーパック', price: 900, kcal: 1400, full: 26, tags: ['sweet'], night: 1 },
+    { id: 'ramenbig',  name: '背脂ラーメン（持ち帰り）', price: 1200, kcal: 1700, full: 42, tags: ['meal'], night: 3 },
+    { id: 'sake',      name: '日本酒の一升瓶とおでん', price: 2400, kcal: 1900, full: 30, tags: ['alcohol'], night: 1 },
+    { id: 'bucketpud', name: 'バケツプリン',         price: 1600, kcal: 2400, full: 40, tags: ['sweet'], night: 2 },
+    { id: 'pizzal',    name: 'ピザLサイズ',          price: 2800, kcal: 2700, full: 55, tags: ['fried', 'meal'], night: 3 },
+    { id: 'wholecheese', name: 'チーズケーキ1ホール', price: 2200, kcal: 3000, full: 50, tags: ['sweet'], night: 2 },
+    { id: 'friedbucket', name: 'フライドチキンのバケツ', price: 3200, kcal: 3600, full: 65, tags: ['fried', 'meal'], night: 3 }
+  ],
+
+  // 外食に誘う：店を選ぶ（v1.7）。bg は背景（famires / teishoku / izakaya）。likeTag が好物なら親密度+2
+  restaurants: [
+    { id: 'teishoku', name: '定食屋',           price: 1000,  kcal: 1000, full: 34, affection: 5,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal' },
+    { id: 'famires',  name: 'ファミレス',       price: 1600,  kcal: 1200, full: 38, affection: 5,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'famires',  likeTag: 'sweet' },
+    { id: 'jiro',     name: '二郎系ラーメン',   price: 1200,  kcal: 1900, full: 58, affection: 4,  habit: 0.04, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal' },
+    { id: 'sushi',    name: '回転寿司',         price: 2500,  kcal: 1300, full: 44, affection: 6,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal' },
+    { id: 'izakaya',  name: '居酒屋',           price: 3500,  kcal: 1600, full: 46, affection: 6,  habit: 0.03, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'alcohol' },
+    { id: 'cakebuf',  name: 'ケーキバイキング', price: 3200,  kcal: 2300, full: 52, affection: 6,  habit: 0.05, slots: ['昼', '夕'],       bg: 'famires',  likeTag: 'sweet' },
+    { id: 'yakiniku', name: '焼肉食べ放題',     price: 4500,  kcal: 2600, full: 66, affection: 7,  habit: 0.05, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'fried' },
+    { id: 'french',   name: 'フレンチのコース', price: 12000, kcal: 1500, full: 40, affection: 10, habit: 0.02, slots: ['夜'],             bg: 'teishoku', likeTag: 'sweet' }
   ],
 
   /* ---- 一緒に食べる系の行動 ---- */
