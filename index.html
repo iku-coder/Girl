@@ -131,6 +131,8 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .roominfo{margin-top:12px;background:rgba(23,24,31,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .roster{display:grid;margin-top:8px}
 .rrow.link{cursor:pointer}
+.bubble{background:var(--panel2);border-radius:12px;padding:8px 12px;margin:8px 0;max-width:85%;font-size:14px;line-height:1.6}
+.bubble.me{margin-left:auto;background:var(--lamp);color:var(--ink)}.bubble .photo{margin-top:6px;font-size:12px;color:var(--muted)}
 .card3.sel{border-color:var(--lamp);box-shadow:0 0 0 1px var(--lamp) inset}
 button.card3{color:inherit;font:inherit;text-align:left;cursor:pointer}
 .opt{display:flex;gap:8px;align-items:center;font-size:13px;margin:8px 0}
@@ -240,6 +242,7 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="scenes.js"></script>
 <script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });
 window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = o; };
+window.PHONE = {}; window.addPhone = (id, list) => { window.PHONE[id] = (window.PHONE[id] || []).concat(list || []); };
 window.EXTRA = {}; window.addExtra = (id, o) => { const e = window.EXTRA[id] = window.EXTRA[id] || { lines: {} }; if (o.birthday) e.birthday = o.birthday; Object.assign(e.lines, o.lines || {}); };</script>
 <script src="scenes/_intro.js"></script>
 <script src="scenes/reina.js"></script>
@@ -1174,6 +1177,8 @@ function night(silent) {
     const dW = raw > 0 ? raw * C.weightGainBoost * fatMul(st) : raw / fatMul(st);
     const from = st.weight;
     st.weight = Math.min(maxW(h), Math.round((st.weight + dW) * 100) / 100);
+    // 目標の体型を保つ（S10）：段階の範囲からはみ出さない
+    if (st.keep && st.target) { const [lo, hi] = stageRange(h, st.target); st.weight = clamp(st.weight, Math.ceil(lo * 100 + 1) / 100, Math.floor(hi * 100 - 1) / 100); }
     const ns = stageOf(h, st.weight);
     const prevStage = st.stage; st.stage = ns;
     checkMilestones(h, st, from, st.weight);
@@ -1185,6 +1190,7 @@ function night(silent) {
     }
     st.stage = ns;
     st.topStage = Math.max(st.topStage || 1, ns);
+    if (st.target && ns >= st.target && !st.targetHit) { st.targetHit = true; rep.events.push(`${h.name}が、目標の体型（段階${st.target}）になった。部屋で「体型を保つ」を選べる。`); }
     // 栞：段階9になったら一度だけ、夫が一時帰国（3日間、訪ねられない）
     if (h.id === 'shiori' && ns >= 9 && !SPX().husband) { SPX().husband = true; st.away = { until: S.day + 3, text: '202号室。…中から男の人の声がする。栞の夫が一時帰国しているらしい。今は訪ねられない。' }; rep.events.push('栞の部屋に、明かりがふたつ。…夫が一時帰国したらしい（3日間）。'); }
     // 体重計：5kg刻み（10kgの倍数は節目イベントにまかせる）
@@ -1226,6 +1232,7 @@ function night(silent) {
     if (allCap && hs.every(h => S.h[h.id].stage >= 15) && !S.endFull) { S.endFull = true; S.pendingEnding = 'full'; }
     else if (mmdd(S.day) === (C.endingDate || '03-31')) S.pendingEnding = 'year';
     if (S.pendingEnding) S.endYear = yearOf(); }
+  { const n = phoneRoll(); if (n) rep.events.push(`スマホに、住人からのメッセージが${n}通届いた。`); }
   rep.date = dateText();
   S.day++; S.slot = 0; S.uniToday = false; S.view = { type: 'map' };
   save();
@@ -1600,6 +1607,7 @@ function roomHTML(h) {
       <button class="btn" data-act="cookMenu" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
       ${h.id === 'shiori' && st.aff >= 35 ? `<button class="btn" data-act="lesson" ${S.cook >= 2 && st.lessonDay !== S.day ? '' : 'disabled'}>料理を教える<small>${S.cook < 2 ? '料理の腕2から' : st.lessonDay === S.day ? '今日はもう教えた' : '一緒に作って、二人で食べる・時間が進む'}</small></button>` : ''}
       ${h.id === 'rio' && S.h.hinata && S.h.hinata.aff >= 70 ? `<button class="btn" data-act="giftOpenH" ${invCount() ? '' : 'disabled'}>ひなたと一緒に食べる<small>${invCount() ? 'ひなたの「一緒に食べよ？」は断れない' : '手持ちなし'}</small></button>` : ''}
+      ${st.target && st.stage >= st.target ? `<button class="btn" data-act="keepToggle">${st.keep ? '体型を保つのをやめる' : '体型を保つ'}<small>${st.keep ? `維持中（段階${st.target}）` : `目標の段階${st.target}に到達`}</small></button>` : ''}
       ${st.clothesNew && st.aff >= C.clothesTrip.minAffection ? `<button class="btn wide" data-act="clothesTrip" ${S.money >= C.clothesTrip.price ? '' : 'disabled'}>服を買いに行く<small>サイズが上がった服を一緒に選ぶ／${yen(C.clothesTrip.price)}・時間が進む</small></button>` : ''}
       <button class="btn wide" data-act="leave">部屋を出る<small>時間が進む（${s} → ${C.slots[S.slot + 1] || '翌朝'}）</small></button>
     </div>
@@ -1618,16 +1626,19 @@ function roomHTML(h) {
       ${h.id === 'himeka' ? `<div class="row"><span>${himekaFriends(st).label}</span><span class="num">${himekaFriends(st).n}人${st.order ? `・命令：${esc((FOOD[st.order] || {}).name || '')}` : ''}</span></div>` : ''}
       ${h.id === 'sumire' && st.focus ? `<div class="row"><span>デザイン</span><span>没頭中（差し入れはため込む：${Math.round(st.stash || 0)}kcal）</span></div>` : ''}
       ${h.id === 'rin' ? `<div class="row"><span>勤務</span><span>${['日勤', '夜勤', '明け・非番', '休み'][rinShift()]}</span></div>` : ''}
+      ${st.keep ? `<div class="row"><span>体型</span><span>維持中（段階${st.target}）</span></div>` : ''}
       ${st.diet ? `<div class="row"><span>ダイエット</span><span>宣言中（あと${Math.max(1, st.diet.until - S.day)}日）</span></div>` : st.rebound ? `<div class="row"><span>ダイエット</span><span>リバウンド中</span></div>` : ''}
       <div class="row"><span>食べる量</span><span>${esc(eatLabel(st))}<span class="muted num">（食習慣${Math.round(st.habit * 100)}%）</span></span></div>
       ${fatMul(st) > 1 ? `<div class="row"><span>体質</span><span>${fatMul(st) >= 1.6 ? 'すっかりデブ体質' : fatMul(st) >= 1.3 ? '太りやすい' : 'ちょっと太りやすい'}<span class="muted num">（×${fatMul(st).toFixed(2)}）</span></span></div>` : ''}
       ${SNACK_TEXT[eatLevel(st)] ? `<div class="row"><span>間食</span><span>${SNACK_TEXT[eatLevel(st)]}</span></div>` : ''}
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         ${st.wary >= 30 ? `<span class="chip warn">警戒 ${Math.round(st.wary)}</span>` : ''}
+        ${tasteHTML(st)}
         ${known.map(([tag, v]) => `<span class="chip ${v === 'like' ? 'like' : 'warn'}">${(st.acquired || {})[tag] ? '好きになった' : v === 'like' ? '好き' : '苦手'}：${C.tagNames[tag] || tag}</span>`).join('')}
       </div>
     </div>
     ${changesHTML(h, st)}
+    ${roomLookHTML(h, st)}
     <div class="legend">在室しやすい時間：${schedText(h)}</div>`;
 }
 
@@ -1733,6 +1744,7 @@ function diaryHTML(h) {
   const gain = Math.round((st.weight - first) * 10) / 10;
   return `<h3>${esc(h.name)}の成長日記</h3>
     <div class="sub">記録 ${d.length}日分・記録を始めてから <span class="num">${gain >= 0 ? '+' : ''}${gain.toFixed(1)}kg</span>（身長 ${h.height}cm）。毎晩の体重を記録している。</div>
+    <div class="row" style="margin-top:6px"><span>目標の体型</span><span><select data-chg="target" data-id="${h.id}">${['', ...Array.from({ length: 14 }, (_, i) => i + 2)].map(v => `<option value="${v}" ${String(st.target || '') === String(v) ? 'selected' : ''}>${v ? `段階${v}「${esc(stageInfo(v).name)}」` : '目標なし（上限まで）'}</option>`).join('')}</select></span></div>
     ${diaryChart(h, d)}
     <div class="roster">${rows}</div>
     <div class="acts" style="margin-top:10px"><button class="btn" data-act="rosterOpen">住人一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`;
@@ -1818,6 +1830,74 @@ function offerHTML() {
     ${Object.entries(S.inv).map(([id, n]) => { const f = FOOD[id]; return `<div class="item"><div>${esc(f.name)}<small>${f.kcal}kcal</small></div><span class="num">×${n}</span><button class="mini" data-act="offer" data-id="${id}">お供え</button></div>`; }).join('') || '<p class="muted">手持ちの食べ物がない。</p>'}
     <button class="btn close" data-act="close">やめる</button>`;
 }
+/* ---------- v1.8：部屋の様子（S6） ---------- */
+const stGroup = st => (st.stage <= 4 ? 0 : st.stage <= 8 ? 1 : st.stage <= 12 ? 2 : 3);
+function roomLook(h, st) {
+  const L = Object.assign({}, C.roomLooks || {}, h.roomLooks || {}), out = {};
+  Object.entries(L).forEach(([k, v]) => {
+    if (v.by === 'clothes') { if (st.clothes) out[k] = { key: 'c' + st.clothes.top, text: v.text[0].replace('{size}', CS[st.clothes.top].name), label: v.label }; return; }
+    const i = v.by === 'stage' ? stGroup(st) : eatLevel(st), tx = v.text[Math.min(i, v.text.length - 1)];
+    out[k] = { key: v.by[0] + i, text: tx, label: v.label };
+  });
+  return out;
+}
+function roomLookChanges(h, st) {
+  const now = roomLook(h, st), prev = st.look, lines = [];
+  if (prev) Object.entries(now).forEach(([k, v]) => { if (prev[k] && prev[k] !== v.key && lines.length < 3) lines.push(`（いつの間にか、${v.text}）`); });
+  st.look = Object.fromEntries(Object.entries(now).map(([k, v]) => [k, v.key]));
+  return lines;
+}
+function roomLookHTML(h, st) {
+  const now = roomLook(h, st);
+  return `<details class="changes"><summary>部屋の様子</summary><ul>${Object.values(now).map(v => `<li><b>${esc(v.label)}</b>　${esc(v.text)}</li>`).join('')}</ul></details>`;
+}
+/* ---------- v1.8：飽きとハマり（S2） ---------- */
+// 戻り値：'bored'（7日以内に3回目）／'hooked'（合計8回で好物に）／null
+function eatTrack(h, st, key) {
+  const days = diffOf().boredDays, log = (st.eatLog = st.eatLog || {}), cnt = (st.eatCnt = st.eatCnt || {});
+  const recent = (log[key] || []).filter(d => S.day - d < (days || 7));
+  log[key] = recent.concat([S.day]);
+  if (days && recent.length >= 2) return 'bored';
+  cnt[key] = (cnt[key] || 0) + 1;
+  if (cnt[key] === 8) { (st.hooked = st.hooked || {})[key] = true; return 'hooked'; }
+  return null;
+}
+const keyName = k => (k.startsWith('r:') ? (RECIPES.find(r => r.id === k.slice(2)) || {}).name : k.startsWith('p:') ? ((D.restaurants || []).find(r => r.id === k.slice(2)) || {}).name : (FOOD[k] || {}).name) || k;
+function tasteHTML(st) {
+  const hk = Object.keys(st.hooked || {}).map(keyName), days = diffOf().boredDays;
+  const bd = days ? Object.entries(st.eatLog || {}).filter(([k, ds]) => ds.filter(d => S.day - d < days).length >= 2).map(([k]) => keyName(k)) : [];
+  return (hk.length ? `<span class="chip like">ハマっている：${esc(hk.join('・'))}</span>` : '') + (bd.length ? `<span class="chip warn">最近飽き気味：${esc(bd.join('・'))}</span>` : '');
+}
+/* ---------- v1.8：スマホ（S5） ---------- */
+function phoneRoll() {
+  const ph = (S.phone = S.phone || { log: [] }); let n = 0;
+  HS().filter(h => S.h[h.id].met && S.h[h.id].aff >= 50).sort(() => Math.random() - 0.5).forEach(h => {
+    const st = S.h[h.id]; if (n >= 3 || Math.random() >= (st.captured ? 0.3 : 0.12)) return;
+    const pool = ((window.PHONE || {})[h.id] || []).concat(D.commonPhone || []).filter(m => condOk(h, m.if || {}));
+    const m = pick(pool.filter(x => !(ph.log.slice(-40).some(l => l.id === h.id && l.msg === x.msg))) .concat([]) ) || pick(pool); if (!m) return;
+    ph.log.push({ id: h.id, day: S.day, msg: m.msg, photo: m.photo || '', replies: m.replies || [], read: false }); n++;
+  });
+  return n;
+}
+function phoneHTML(sel) {
+  const ph = S.phone || { log: [] }, list = ph.log.slice().reverse();
+  if (sel != null) {
+    const m = ph.log[sel], h = H[m.id];
+    return `<h3>${esc(h.name)}</h3><div class="sub">${m.day}日目</div><div class="bubble">${esc(nameFill(m.msg))}${m.photo ? `<div class="photo">〔写真：${esc(m.photo)}〕</div>` : ''}</div>
+      ${m.reply != null ? `<div class="bubble me">${esc(nameFill(m.replies[m.reply].text))}</div><div class="bubble">${esc(nameFill(m.replies[m.reply].res || ''))}</div>`
+        : `<div class="acts">${m.replies.map((r, i) => `<button class="btn" data-act="phoneReply" data-i="${sel}" data-r="${i}">${esc(nameFill(r.text))}</button>`).join('')}</div>`}
+      <div class="acts"><button class="btn" data-act="phoneOpen">一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`;
+  }
+  return `<h3>スマホ</h3><div class="sub">住人からのメッセージ（新しい順）</div>
+    <div class="roster">${list.map(m => { const i = ph.log.indexOf(m), h = H[m.id]; return `<div class="rrow link" data-act="phoneView" data-i="${i}"><div class="rname"><b>${m.reply == null ? '<span class="heart">●</span> ' : ''}${esc(h.name)}</b><small class="muted">${esc(nameFill(m.msg)).slice(0, 26)}…</small></div><div></div><div class="rval num"><small>${m.day}日目</small></div></div>`; }).join('') || '<p class="muted">まだメッセージはない。</p>'}</div>
+    <button class="btn close" data-act="close">閉じる</button>`;
+}
+const unreadPhone = () => ((S.phone || {}).log || []).filter(m => m.reply == null).length;
+/* ---------- v1.8：目標の体型（S10） ---------- */
+function stageRange(h, sg) {
+  const lo = sg <= 1 ? 0 : (D.stages[sg - 2] || {}).maxBmi || 0, hi = (D.stages[sg - 1] || {}).maxBmi || 99;
+  const m2 = (h.height / 100) ** 2; return [lo * m2, hi * m2];
+}
 /* ---------- v1.8：設定（難易度）とまとめて進める ---------- */
 function settingsHTML() {
   return `<h3>設定</h3><div class="sub">いつでも変えられる。セーブに記録される。</div>
@@ -1874,6 +1954,7 @@ function menuHTML() {
   return `<h3>メニュー</h3><div class="acts" style="margin-top:0">
     <button class="btn" data-act="rosterOpen">住人一覧・成長日記<small>会った住人の親密度と、毎日の体型の記録</small></button>
     <button class="btn" data-act="galleryOpen">ギャラリー<small>これまでに見た立ち絵</small></button>
+    <button class="btn" data-act="phoneOpen">スマホ${unreadPhone() ? `（${unreadPhone()}）` : ''}<small>住人からのメッセージ</small></button>
     <button class="btn" data-act="settingsOpen">設定<small>難易度（今：${esc(diffOf().label || 'ふつう')}）など</small></button>
     <button class="btn" data-act="saveNow">セーブ<small>${cloudDoc ? 'アカウントに保存（自動セーブもあり）' : 'このブラウザに保存'}</small></button>
     <button class="btn" data-act="exportOpen">セーブコード<small>書き出して別の端末へ</small></button>
@@ -1921,6 +2002,14 @@ const ACT = {
   menu() { openModal('menu', menuHTML()); },
   rosterOpen() { openModal('roster', rosterHTML()); },
   settingsOpen() { openModal('settings', settingsHTML()); },
+  phoneOpen() { openModal('phone', phoneHTML()); },
+  phoneView(d) { openModal('phone', phoneHTML(+d.i)); },
+  phoneReply(d) {
+    const m = S.phone.log[+d.i], r = m.replies[+d.r], h = H[m.id], st = S.h[h.id]; if (m.reply != null) return;
+    m.reply = +d.r; addAff(h, r.aff || 1); if (r.habit) st.habit = clamp(st.habit + r.habit, 0, 1);
+    save(); openModal('phone', phoneHTML(+d.i)); render();
+  },
+  keepToggle() { const h = room(), st = S.h[h.id]; st.keep = !st.keep; if (st.keep) speak(h, 'keepOn'); render(); },
   setDiff(d) { S.diff = d.k; save(); openModal('settings', settingsHTML()); render(); },
   autoOpen() { openModal('auto', autoHTML()); },
   autoRun(d) {
@@ -2131,6 +2220,7 @@ const ACT = {
     const since = sinceLastText(st);
     if (since) narr(`（${since}）`);
     st.lastSeenW = st.weight;
+    roomLookChanges(h, st).forEach(l => narr(l));     // 部屋の様子の変化（S6）
     if (eatLevel(st) >= 5) eatSpecial(h, 'visit5');   // 無尽蔵：訪ねるといつも何か食べている
     if (h.id === 'himeka') syncRoute();
     // キャラ専用（優先）。どれか1つ出たら、ふつうのあいさつは出さない
@@ -2213,7 +2303,8 @@ const ACT = {
       render(); return;
     }
     S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
-    const kcalG = Math.round(f.kcal * giftMul(h, st, f));
+    const tr = eatTrack(h, st, f.id);   // 飽き・ハマり（S2）
+    const kcalG = Math.round(f.kcal * giftMul(h, st, f) * (tr === 'bored' ? 0.8 : 1));
     st.full += f.full; st.intake += kcalG; st.gifts++;
     aoiJealous(h);
     if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
@@ -2229,7 +2320,9 @@ const ACT = {
     }
     st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
     const good = f.tags.filter(t => isLike(h, st, t));
-    if (warmDislike) {
+    if (tr === 'bored') { speak(h, 'bored'); }
+    else if (tr === 'hooked' || (st.hooked || {})[f.id]) { if (tr === 'hooked') speak(h, 'hooked'); else speak(h, 'giftLike'); addAff(h, C.giftLikeAffection); }
+    else if (warmDislike) {
       bad.forEach(t => { st.known[t] = 'dislike'; });
       speak(h, 'giftDislikeWarm'); addAff(h, 1);
       // 何度か食べるうちに、苦手だった物が好きになる
@@ -2282,7 +2375,8 @@ const ACT = {
     dietStopCheck(h, st);
     if (st.diet && !st.captured) { speak(h, 'dietRefuse'); render(); return; }
     if (st.full + m.full > st.cap) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
-    const kcal = Math.round(m.kcal * (rcp && hasFac('cooker') ? 1.2 : 1));
+    const trM = rcp ? eatTrack(h, st, 'r:' + rcp.id) : place ? eatTrack(h, st, 'p:' + place.id) : null;
+    const kcal = Math.round(m.kcal * (rcp && hasFac('cooker') ? 1.2 : 1) * (trM === 'bored' ? 0.8 : 1));
     if (rcp) narr(`（${rcp.name}を作った）`);
     S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true;
     aoiJealous(h);
@@ -2291,7 +2385,8 @@ const ACT = {
       else sceneBg(h.likes.includes('alcohol') && slotName() !== '昼' ? 'izakaya' : slotName() === '昼' ? pick(['famires', 'teishoku']) : 'teishoku');
     }
     st.habit = clamp(st.habit + m.habit, 0, 1);
-    speak(h, d.kind); addAff(h, m.affection); stretch(h);
+    if (trM === 'bored') speak(h, 'bored'); else { speak(h, d.kind); if (trM === 'hooked') speak(h, 'hooked'); addAff(h, m.affection); }
+    stretch(h);
     narr(d.kind === 'eatOut' ? '（ふたりで食事をして、部屋まで送った）' : S.invite ? '（101号室のちゃぶ台で、ふたりで食卓を囲んだ）' : '（ふたりで食卓を囲んだ）');
     S.view = S.invite ? { type: 'self' } : { type: 'map' }; S.invite = null; advanceSlot();
   },
@@ -2357,6 +2452,11 @@ const ACT = {
   }
 };
 
+// 成長日記の「目標の体型」
+document.addEventListener('change', e => {
+  const el = e.target; if (!el.dataset || el.dataset.chg !== 'target' || !S) return;
+  const st = S.h[el.dataset.id]; st.target = +el.value || null; st.targetHit = !!(st.target && st.stage >= st.target); if (!st.target) st.keep = false; save();
+});
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b || b.disabled) return;
