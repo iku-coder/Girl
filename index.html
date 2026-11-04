@@ -94,7 +94,7 @@ main{flex:1;min-height:0;overflow-y:auto;padding-block:14px}
 .nameinput{width:100%;margin-top:10px;font:inherit;font-size:18px;padding:8px 10px;background:var(--ink);color:var(--paper);border:1px solid var(--line);border-radius:6px}
 /* 会話中の立ち絵（左）とステータス（右） */
 /* 会話中：立ち絵を画面の下端（背景の地面）まで大きく出し、足元に影。メッセージ欄は半透明で重ねる */
-#stage{position:fixed;top:calc(var(--msgH) + 6px);bottom:0;left:50%;transform:translateX(-50%);width:min(100%,480px);overflow:hidden;z-index:1;pointer-events:none}
+#stage{position:fixed;top:calc(var(--msgH) + 6px);height:calc(100% - var(--msgBase,var(--msgH)) - 6px);left:50%;transform:translateX(-50%);width:min(100%,480px);overflow:hidden;z-index:1;pointer-events:none}
 #stage .fig{position:absolute;left:0;right:30%;top:6px;bottom:var(--floor)}
 #stage .fig::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);width:58%;height:22px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.55),rgba(0,0,0,0));z-index:-1}
 #stage .fig img{position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;max-width:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
@@ -106,7 +106,7 @@ main{flex:1;min-height:0;overflow-y:auto;padding-block:14px}
 #stage .cast .cf.dim{filter:brightness(.6);transform:scale(.94)}
 #stage .stats-card{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:12%;width:42%;max-width:210px;pointer-events:auto}
 /* 会話中は背景を「地面」の高さまで持ち上げ、足がその上に乗るようにする。ヘッダーは隠して立ち絵を大きく */
-:root{--floor:calc(26px + env(safe-area-inset-bottom,0px));--msgH:110px}
+:root{--floor:calc(26px + env(safe-area-inset-bottom,0px));--msgH:110px;--msgBase:110px}
 /* v2.2：メッセージ欄は画面の上。立ち絵はその下から床まで（顔がテキストのすぐ下に来る） */
 #hdr{order:0}#msg{order:1;margin-top:6px}main{order:2}#spacer{order:3}
 #bg.talk{bottom:var(--floor)}
@@ -808,7 +808,9 @@ function clearSceneBg() { if (S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = nu
 $('#tap').addEventListener('click', () => { sfx('tap'); Q.shift(); if (!Q.length) { stageHid = null; stageCast = null; } drawMsg(); });
 let stageHid = null, stageCast = null;
 // メッセージ欄の高さに合わせて、立ち絵の上端を下げる（v2.2）
-try { new ResizeObserver(() => { const m = $('#msg'); document.documentElement.style.setProperty('--msgH', Math.ceil(m.getBoundingClientRect().bottom - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0)) + 'px'); }).observe($('#msg')); } catch (e) {}
+// 選択肢で欄が伸びたときは、立ち絵の大きさはそのままで下へずらす（--msgBase＝選択肢なしの高さで、立ち絵の高さを決める）
+try { new ResizeObserver(() => { const m = $('#msg'), b = Math.ceil(m.getBoundingClientRect().bottom), r = document.documentElement.style;
+  r.setProperty('--msgH', b + 'px'); if (!m.classList.contains('choosing')) r.setProperty('--msgBase', b + 'px'); }).observe($('#msg')); } catch (e) {}
 // 会話中の立ち絵画面。部屋の中で同じヒロインと話しているときは、部屋の画面の立ち絵を使う
 function drawStage() {
   const h = stageHid && H[stageHid];
