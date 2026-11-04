@@ -1187,7 +1187,15 @@ function mmCapture(h) {
 // その場所に今いる外のヒロイン（any＝時間を問わず）
 const outAt = (place, any) => HS().filter(h => isOut(h) && (h.place === place || (outPlace(h) || {}).outing === place) && (any || present(h)));
 // 外出の画面から会いに行ける人（行き先が外出にある人だけ。配達の2人は向こうから来る）
-const outMeets = () => slotName() === '深夜' ? [] : HS().filter(h => isOut(h) && outPlace(h) && outPlace(h).outing && present(h) && (outPlace(h).outing !== 'job'));
+// 顔見知りになった外のヒロイン（バイト・配達・買い出しなどで何度か会うと、「ヒロインに会いに行く」から会える。v2.4）
+const outKnown = () => HS().filter(h => isOut(h) && S.h[h.id].outOpen);
+function outMeetHTML() {
+  const hs = outKnown();
+  return `<h3>ヒロインに会いに行く</h3><div class="sub">顔見知りになった町の人。今その場所にいる人に会える（時間が進む）。</div>
+    <div class="grid3">${hs.map(h => { const st = S.h[h.id], here = present(h) && slotName() !== '深夜';
+      return `<button class="card3 ${here ? '' : 'over'}" data-act="meetOut" data-id="${h.id}" ${here ? '' : 'disabled'}><b>${esc(shortName(h))}</b><small>${esc(outPlace(h).label)}</small><small>${here ? `今いる・親密度 ${Math.floor(st.aff)}` : `いない（${esc(schedText(h))}）`}</small></button>`; }).join('')}</div>
+    <button class="btn close" data-act="close">やめる</button>`;
+}
 // その場の食べ物（夜は閉店前・閉店後の別メニューがある場所も。ファミレスのまかないは料理の腕で増える）
 function outFoodOf(h) {
   const P = outPlace(h) || {}; let F = slotName() === '夜' && P.foodNight ? P.foodNight : P.food; if (!F) return null;
@@ -1225,6 +1233,7 @@ function meetOut(h) {
 function meetOutAuto(h) {   // 時間を進めない、短い出会い（バイト・配達・朝の郵便・35未満の人に会いに行ったとき）
   const st = S.h[h.id], P = outPlace(h); if (!P || !present(h) && P.outing || st.meetDay === S.day) return;
   st.meetDay = S.day;   // 同じ人と会うのは1日1回
+  st.outMeets = (st.outMeets || 0) + 1;
   narr(`（${P.label}で、${h.name}に会った）`);
   if (!tryScene(h, 'meetOut')) speak(h, 'greetOut');
   addAff(h, (C.outside || {}).meetAffection || 3);
@@ -1234,6 +1243,9 @@ function meetOutAuto(h) {   // 時間を進めない、短い出会い（バイ�
     if (!flushPending) { flushPending = true; queueMicrotask(flush); }
   }
   handOffer(h);
+  if (!st.outOpen && st.outMeets >= ((C.outside || {}).unlockMeets || 3)) {   // 顔見知りになった
+    st.outOpen = true; const f = () => narr(`（${h.name}とは、すっかり顔見知りになった。外出の「ヒロインに会いに行く」から会いに行ける）`);
+    if (inScene) sceneNotes.push(f); else f(); }
 }
 function outAction(h, act) {
   const held = incoming; incoming = [];
@@ -2235,7 +2247,7 @@ function closeModal() {
   $('#modal').hidden = true; $('#modal').innerHTML = '';
   if (kind === 'cook' && S && S.invite) { const h = H[S.invite.id]; S.invite = null; narr(`（結局、${h.name}とお茶を飲んで、部屋まで送った）`); advanceSlot(); return; }
   if (kind === 'shop' && shopBought) { shopBought = false; const sid = S.shopStore || 'conveni'; S.shopCnt = S.shopCnt || {}; S.shopCnt[sid] = (S.shopCnt[sid] || 0) + 1;
-    const sbg = ((C.outings || []).find(o => o.id === sid) || {}).bg || 'supermarket'; sceneBg(sbg); encounter('shopping', sbg) || encounter('town'); narr(`${((C.outings || []).find(o => o.id === sid) || { name: '買い出し' }).name}から戻った。`); advanceSlot(); }
+    const sbg = ((C.outings || []).find(o => o.id === sid) || {}).bg || 'supermarket'; sceneBg(sbg); { const k = outAt(sid)[0]; if (k && Math.random() < ((C.outside || {}).shopChance || 0.5)) meetOutAuto(k); else encounter('shopping', sbg) || encounter('town'); } narr(`${((C.outings || []).find(o => o.id === sid) || { name: '買い出し' }).name}から戻った。`); advanceSlot(); }
   else if ((kind === 'night' || kind === 'autoDone') && S.pendingEnding) { const k = S.pendingEnding; S.pendingEnding = null; openModal('ending', endingHTML(k)); }
   else if (kind === 'night' || kind === 'ending' || kind === 'autoDone') {
     narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`);
@@ -2268,7 +2280,7 @@ function outHTML() {
   const ev = seasonsToday();
   return `<h3>外出</h3><div class="sub">どこへ出かける？（${slotName()}・所持金 ${yen(S.money)}）</div>
     ${ev.length ? `<h4 style="margin:8px 0 4px">季節の行事</h4><div class="grid3">${ev.map(e => `<button class="card3 sel" data-act="seasonOpen" data-id="${e.id}"><b>${esc(e.label)}</b><small>${esc(e.name)}・1年に1回</small></button>`).join('')}</div>` : ''}
-    ${(() => { const ms = outMeets(); return ms.length ? `<h4 style="margin:8px 0 4px">会いに行く</h4><div class="grid3">${ms.map(h => `<button class="card3" data-act="meetOut" data-id="${h.id}"><b>${esc(shortName(h))}</b><small>${esc(outPlace(h).label)}${S.h[h.id].met ? `・親密度 ${Math.floor(S.h[h.id].aff)}` : ''}</small><small>時間が進む</small></button>`).join('')}</div>` : ''; })()}
+    ${outKnown().length ? `<button class="btn wide" data-act="outMeetOpen" ${slotName() === '深夜' ? 'disabled' : ''}>ヒロインに会いに行く<small>顔見知りになった町の人（${outKnown().filter(h => present(h)).length}人が今いる）</small></button>` : ''}
     <div class="grid3">${(C.outings || []).map(o => { const [ok, why] = outingOk(o);
       const extra = o.id === 'job' ? `<small>${yen(C.partTimePay)}</small>` : o.id === 'sento' ? `<small>${yen(C.sento.price)}・住人を誘う</small>` : o.id === 'conveni' && S.tax && !S.tax.paid ? '<small class="up">税金も払える</small>' : o.store && shopRank(o.id) ? `<small>${shopRank(o.id) === 'vip' ? '顔パス' : '常連'}</small>` : '';
       return `<button class="card3 ${ok ? '' : 'over'}" data-act="outGo" data-id="${o.id}" ${ok ? '' : 'disabled'}><b>${esc(o.name)}</b><small>${esc(ok ? o.note : why)}</small>${extra}</button>`; }).join('')}</div>
@@ -2283,7 +2295,6 @@ function shopHTML() {
       <button class="mini" data-act="buy" data-id="${f.id}" ${S.money < price(f) ? 'disabled' : ''}>買う</button></div>`).join('')}</div>
     ${['conveni', 'super'].includes(S.shopStore || 'conveni') ? [['apartment', 'snackbox', '玄関'], ['mansion', 'snackbox2', 'ロビー']].filter(([, fac]) => hasFac(fac)).map(([b, , nm]) => `<div class="item"><div>${nm}のお菓子箱を補充<small>今の在庫 約${Math.round(((S.snackBox || {})[b] || 0))}kcal</small></div><span></span><span>${C.snackBox.refill.map((R, i) => `<button class="mini" data-act="refill" data-b="${b}" data-i="${i}" ${S.money >= R.price ? '' : 'disabled'}>${yen(R.price)}（${R.kcal}kcal）</button>`).join(' ')}</span></div>`).join('') : ''}
     ${(S.shopStore || 'conveni') === 'conveni' && S.tax && !S.tax.paid && S.money >= S.tax.amount + taxLate() ? `<button class="btn" data-act="payTax" data-free="1">ついでに固定資産税を払う<small>${yen(S.tax.amount + taxLate())}</small></button>` : ''}
-    ${outAt(S.shopStore || 'conveni').map(h => `<button class="btn" data-act="meetOut" data-id="${h.id}">${esc(shortName(h))}と話す<small>${esc(outPlace(h).label)}・時間が進む</small></button>`).join('')}
     <button class="btn primary close" data-act="close">${shopBought ? 'アパートに戻る' : 'やめる'}</button>`;
 }
 function giftHTML(h) {
@@ -2446,7 +2457,6 @@ function aoiJealous(other) {
 function offerHTML() {
   return `<h3>陽守神社</h3><div class="sub">お供えは、あとで千早が「おさがり」としていただく。警戒に関係なく受け取ってもらえる（親密度の上がり方は少し小さい）。</div>
     ${Object.entries(S.inv).map(([id, n]) => { const f = FOOD[id]; return `<div class="item"><div>${esc(f.name)}<small>${f.kcal}kcal</small></div><span class="num">×${n}</span><button class="mini" data-act="offer" data-id="${id}">お供え</button></div>`; }).join('') || '<p class="muted">手持ちの食べ物がない。</p>'}
-    ${outAt('shrine').map(h => `<button class="btn" data-act="meetOut" data-id="${h.id}">${esc(shortName(h))}に会う<small>境内・社務所／時間が進む</small></button>`).join('')}
     <button class="btn" data-act="shrineVisit">お参りだけして帰る<small>時間が進む</small></button>
     <button class="btn close" data-act="close">やめる</button>`;
 }
@@ -2619,7 +2629,6 @@ function sentoHTML() {
   const sel = S.sentoSel || [], max = caps.length >= 2 ? 2 : 1;
   return `<h3>銭湯に誘う</h3><div class="sub">${yen(C.sento.price)}（2人分）。${max === 2 ? '攻略した住人なら2人まで一緒に誘える。' : ''}</div>
     ${hs.map(h => `<button class="item pick ${sel.includes(h.id) ? 'on' : ''}" data-act="sentoToggle" data-id="${h.id}"><div>${esc(h.name)}<small>親密度 ${Math.round(S.h[h.id].aff)}</small></div><span class="num">${sel.includes(h.id) ? '✓' : ''}</span></button>`).join('') || '<p class="muted">誘える住人がいない（親密度50以上・在室）。</p>'}
-    ${outAt('sento').map(h => `<button class="btn" data-act="meetOut" data-id="${h.id}">ひとりで行って、番台の${esc(shortName(h))}と話す<small>${yen(C.sento.price / 2)}・時間が進む</small></button>`).join('')}
     <div class="acts"><button class="btn primary" data-act="sentoGo" ${sel.length ? '' : 'disabled'}>銭湯へ行く<small>時間が進む</small></button><button class="btn close" data-act="close">やめる</button></div>`;
 }
 /* ---------- v1.8：なじみの店（S7） ---------- */
@@ -2842,6 +2851,7 @@ const ACT = {
   sentoGo() {
     const hs = (S.sentoSel || []).map(id => H[id]); S.sentoSel = []; closeModal(); if (!hs.length || S.money < C.sento.price) return;
     S.money -= C.sento.price * (hs.length > 1 ? 1.5 : 1); S.sentoDay = S.day; sceneBg('sento');
+    { const k = outAt('sento')[0]; if (k) meetOutAuto(k); }   // 番台の小町（外のヒロイン）
     withCast(hs.length > 1 ? hs.map(h => h.id) : null, () => {
       hs.forEach(h => { const st = S.h[h.id]; S.ctxKg = Math.floor(st.weight / 5) * 5; st.intake += C.sento.kcal; addAff(h, C.sento.affection); if (!tryScene(h, 'sento')) speak(h, 'sento'); });
     });
@@ -2903,7 +2913,8 @@ const ACT = {
       <div class="sub">${esc(si.desc || '')}</div><div class="acts"><button class="btn" data-act="galleryOpen">一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`);
   },
   facOpen() { openModal('fac', facHTML()); },
-  meetOut(d) { const h = H[d.id]; if (!h) return; closeModal(); if (h.place === 'sento' || (outPlace(h) || {}).outing === 'sento') { S.money -= C.sento.price / 2; S.sentoDay = S.day; } meetOut(h); },
+  outMeetOpen() { openModal('outMeet', outMeetHTML()); },
+  meetOut(d) { const h = H[d.id]; if (!h || !S.h[h.id].outOpen || !present(h)) return; closeModal(); meetOut(h); },
   outFood() { const h = room(); if (h && outFood(h)) render(); },
   yukoGossip() {   // 夕子：住人の最近の買い物（好物と食べる量のヒント）
     const h = room(), st = S.h[h.id]; if (!h || h.id !== 'yuko' || st.gossipDay === S.day) return; st.gossipDay = S.day;
@@ -3034,7 +3045,7 @@ const ACT = {
     S.view = { type: 'map' }; advanceSlot();
   },
   offerOpen() { openModal('offer', offerHTML()); },
-  shrineVisit() { closeModal(); SPX().offerDay = S.day; sceneBg('shrine'); narr('（陽守神社にお参りした。鈴を鳴らして、手を合わせる）'); { const sa = outAt('shrine')[0]; if (sa && S.h.satsuki.met) { addAff(sa, 1); narr('（掃き掃除をしていた紗月が、こちらに小さく会釈した）'); } }
+  shrineVisit() { closeModal(); SPX().offerDay = S.day; sceneBg('shrine'); narr('（陽守神社にお参りした。鈴を鳴らして、手を合わせる）'); { const sa = outAt('shrine')[0]; if (sa) { if (Math.random() < ((C.outside || {}).shopChance || 0.5)) meetOutAuto(sa); else if (S.h.satsuki.met) { addAff(sa, 1); narr('（掃き掃除をしていた紗月が、こちらに小さく会釈した）'); } } }
     const h = H.chihaya; if (h && S.h.chihaya && S.h.chihaya.aff >= 35 && Math.random() < 0.5) { narr('（境内を掃いていた千早が、こちらに気づいて会釈した）'); speak(h, 'greet'); }
     advanceSlot(); },
   offer(d) {
