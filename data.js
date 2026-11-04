@@ -348,6 +348,8 @@ window.GAME_DATA = {
       hide: '親しくない相手には隠そうとしている（デオドラントを増やす、長袖を着る など）',
       careItems: ['care_cream', 'care_deo', 'care_spats', 'care_mint']
     },
+    // v2.4：桃瀬母娘（ひだまりレジデンス204。heroines[].mm＝相手の id、mother: true＝母）
+    momose: { jealUp: 15, warRate: 1.5, decay: 8, rivalAt: 50, rivalRate: 1.3, yakeAt: 60, yakeKcal: 900, takeChance: 0.35, takeLose: 20 },
     // v2.3：外のヒロイン（アパート・マンションに住まない。heroines[].building: 'outside'・place）。会える場所ごとの設定
     //   outing＝外出のどこで会うか（null は特別な会い方：delivery＝荷物が届いたとき、post＝朝の掃除）。food＝その場で一緒に食べるもの（1日1回）
     outside: {
@@ -755,6 +757,12 @@ window.GAME_DATA = {
     lateMeal_jiro: ['こんな時間にラーメン…背徳の味だね', '夜中のニンニク、明日のことは考えないことにする', 'スープまで飲んじゃった。…夜中なのに'],
     lateMeal_famires: ['深夜のファミレスって、なんでこんなにおいしいんだろ', 'この時間のドリンクバー、なんだか特別な感じ', '夜中のパフェ…罪の味がする'],
     lateMeal: ['夜食って、どうしてこんなに罪の味がするんだろうね'],
+    // v2.4：桃瀬母娘の予備（キャラ固有は heroines[].lines）
+    mmWar: ['ねえ、どっちが好き？', '…私も、聞きたい'],
+    mmTake: ['こっち、空いてるよ', 'ここ、座って'],
+    mmTakeWin: ['ふふ、こっちに来てくれた', 'やった'], mmTakeLose: ['…ふーん', '…別に、いいけど'],
+    mmCapture: ['…やっぱり、選べないよね', 'じゃあ、2人一緒でいいよね'],
+    mmResign: ['…よかったね。…ほんとに、よかった'],
     // v2.3：外のヒロイン（キャラ固有は heroines[].lines で上書き）
     greetOut: [['あ、どうも'], ['あら、こんにちは'], ['来てくれたんだ'], ['待ってた']],
     naorai: ['直会は、神さまのおさがりをみなでいただく大切なお勤め。…ですから、遠慮はいたしません', 'お神酒は、今日だけ。…ふふ、もう一献いただきましょうか'],

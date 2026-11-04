@@ -1,7 +1,7 @@
 // 使い方: node tools/check_scenes.js scenes/akane.js [scenes/xxx.js ...]
 // 追加シーンファイル（window.addScenes('<id>', [...], {...})）の形式チェック
 const fs = require('fs'), path = require('path');
-const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'floor', 'floor100', 'reunion', 'momCall', 'familyVisit', 'afterFamily', 'sento', 'homeBack', 'busy', 'examEnd', 'floor2', 'taxNotice', 'familyDinner', 'sick', 'recover', 'delivery', 'oldClothes1', 'oldClothes2', 'oldClothes3', 'favClothes', 'partyDress', 'town', 'campus', 'job', 'shopping', 'diet', 'dietEnd', 'scale', 'clothes', 'birthday', 'season', 'rioHinata', 'lesson', 'videoCall', 'husbandAfter', 'jealousy', 'rentLate', 'lateNight', 'stashEat', 'measure', 'stakeout', 'fitness', 'route', 'twinGap', 'twinSwap', 'twinSwap2', 'cheat', 'doorGift', 'meetOut'];
+const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'floor', 'floor100', 'reunion', 'momCall', 'familyVisit', 'afterFamily', 'sento', 'homeBack', 'busy', 'examEnd', 'floor2', 'taxNotice', 'familyDinner', 'sick', 'recover', 'delivery', 'oldClothes1', 'oldClothes2', 'oldClothes3', 'favClothes', 'partyDress', 'town', 'campus', 'job', 'shopping', 'diet', 'dietEnd', 'scale', 'clothes', 'birthday', 'season', 'rioHinata', 'lesson', 'videoCall', 'husbandAfter', 'jealousy', 'rentLate', 'lateNight', 'stashEat', 'measure', 'stakeout', 'fitness', 'route', 'twinGap', 'twinSwap', 'twinSwap2', 'cheat', 'doorGift', 'meetOut', 'mmWar', 'mmCapture'];
 const COND = ['tiers', 'minAff', 'maxAff', 'flag', 'noFlag', 'late', 'weekend', 'slot', 'captured', 'minStage', 'maxStage', 'minMoney', 'chance', 'minHabit', 'season'];
 const NODE = ['say', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'branch', 'choices', 'prompt', 'next'];
 const CHOICE = ['text', 'line', 'if', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'say', 'next', 'silent'];
@@ -41,7 +41,7 @@ for (const f of process.argv.slice(2)) {
       if (!sc.nodes || !sc.nodes.start) { err(where, 'nodes.start がない'); return; }
       const chkSay = (arr, w) => (arr || []).forEach(l => {
         if (typeof l === 'string') return;
-        if (!Array.isArray(l) || !['p', 'n', 'h'].includes(l[0]) || typeof l[1] !== 'string') err(w, 'セリフの形が不正: ' + JSON.stringify(l));
+        if (!Array.isArray(l) || !(['p', 'n', 'h'].includes(l[0]) || /^@\w+$/.test(l[0])) || typeof l[1] !== 'string') err(w, 'セリフの形が不正: ' + JSON.stringify(l));
       });
       for (const [nid, n] of Object.entries(sc.nodes)) {
         const w = `${where}.${nid}`;

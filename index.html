@@ -258,6 +258,9 @@ window.EXTRA = {}; window.addExtra = (id, o) => { const e = window.EXTRA[id] = w
 <script src="scenes/hero/kyoko.js"></script>
 <script src="scenes/hero/misuzu.js"></script>
 <script src="scenes/hero/yuko.js"></script>
+<!-- 桃瀬母娘（v2.4・ひだまりレジデンス204） -->
+<script src="scenes/hero/haruka.js"></script>
+<script src="scenes/hero/anzu.js"></script>
 <script src="scenes/_intro.js"></script>
 <script src="scenes/reina.js"></script>
 <script src="scenes/sayuri.js"></script>
@@ -963,6 +966,7 @@ const decode = t => JSON.parse(decodeURIComponent(escape(atob(t.trim()))));
 function addAff(h, d) {
   const st = S.h[h.id], t0 = tierOf(st.aff);
   if (d < 0 && window.__affLog) window.__affLog.push([h.id, d, ((new Error().stack || '').split('\n')[2] || '').trim().replace(/\(.*index\.html:/, '(L').slice(0, 60)]);   // テスト用
+  if (d > 0 && st.mmStop) d = 0;   // 桃瀬母娘：もう1人が攻略されて身を引いた（それ以上は進まない）
   if (d > 0) {
     // 攻略ペース：全体の倍率 × 段階ごとの倍率 × 難易度、1日の上限（v2.1）
     d = d * (C.affGainRate == null ? 1 : C.affGainRate) * ((C.affTierRate || [])[t0] == null ? 1 : C.affTierRate[t0]) * diffOf().aff;
@@ -979,7 +983,7 @@ function addAff(h, d) {
   // 会話シーンの途中なら、関係の変化と攻略はシーンが終わってから出す
   const later = f => (inScene ? sceneNotes.push(f) : f());
   if (t1 > t0) later(() => { sfx('heart'); narr(`（${h.name}との関係が「${D.affectionTiers[t1].name}」になった）`); });
-  if (!st.captured && st.aff >= C.captureAffection) { st.captured = true; later(() => { st.captured = false; capture(h); }); }
+  if (!st.captured && st.aff >= C.captureAffection) { st.captured = true; later(() => { st.captured = false; if (h.mm) mmCapture(h); else capture(h); }); }
   if (d > 0 && !S.bankbook) mansionUnlockCheck();
 }
 // 攻略イベント
@@ -1129,6 +1133,56 @@ const isCheat = st => st && st.cheat === S.day;
 const capOf = st => Math.round(st.cap * (isCheat(st) ? ((C.cheatDay || {}).capRate || 2) : 1));
 const lateOk = st => st.captured || st.aff >= (C.lateVisitAffection || 70);   // 深夜に訪ねられる
 const cheatYm = () => yearOf() + '-' + (dateOf(S.day).getMonth() + 1);
+/* ---------- 桃瀬母娘（v2.4）：h.mm＝相手の id。嫉妬ゲージ・張り合い食い・取り合い・宣戦布告・母娘ルート ---------- */
+const mmOn = h => { const o = h.mm && S.h[h.mm]; return !!(o && S.h[h.id].aff >= 35 && o.aff >= 35 && !S.h[h.id].mmStop && !o.mmStop); };
+function mmJealous(h, k = 1) {   // h に食べさせた → もう1人の嫉妬が上がる
+  if (!h.mm || !mmOn(h)) return; const o = S.h[h.mm], M = C.momose;
+  o.mmJeal = clamp((o.mmJeal || 0) + M.jealUp * k * (flagsOf(h).includes('mm_war') ? M.warRate : 1), 0, 100);
+  if (o.mmJeal >= M.yakeAt && !present(H[h.mm])) o.mmYake = S.day;   // 留守のあいだに相手とだけ過ごした → その夜にやけ食い
+}
+function mmVisit(h) {
+  const st = S.h[h.id], o = H[h.mm], os = o && S.h[o.id], M = C.momose; if (!os || !present(o)) return false;
+  const both = [h.id, o.id], fl = flagsOf(h), fo = flagsOf(o);
+  // 宣戦布告：2人とも好意（70）以上、夜か休日、一度だけ
+  if (!fl.includes('mm_war') && st.aff >= 70 && os.aff >= 70 && (slotName() === '夜' || isWeekend())) {
+    fl.push('mm_war'); fo.push('mm_war'); const mom = H[h.id].mother ? h : o;
+    if (!withCastTry(both, mom, 'mmWar')) withCast(both, () => { narr('（部屋に入ると、2人がそろって待っていた）'); speak(mom, 'mmWar'); speak(H[mom.mm], 'mmWar'); });
+    return true;
+  }
+  // 取り合い：2人とも顔なじみ以上でそろっているとき、ときどき
+  if (mmOn(h) && st.mmTakeDay !== S.day && Math.random() < M.takeChance) {
+    st.mmTakeDay = os.mmTakeDay = S.day;
+    withCast(both, () => { narr(`（${shortName(h)}と${shortName(o)}が、ちゃぶ台の両側から、それぞれ自分の隣の座布団をぽんぽんとたたいた）`); speak(h, 'mmTake'); speak(o, 'mmTake'); });
+    incoming.push({ choice: { h, sc: null, ctx: {}, cast: both, list: [{ text: `（${shortName(h)}の隣に座る）`, sysAct: 'mm:' + h.id }, { text: `（${shortName(o)}の隣に座る）`, sysAct: 'mm:' + o.id }, { text: '（2人のあいだに座る）', sysAct: 'mm:' }], prompt: 'どちらの隣に座る？' } });
+    if (!flushPending) { flushPending = true; queueMicrotask(flush); }
+    return true;
+  }
+  return false;
+}
+function mmTake(h, act) {
+  const held = incoming; incoming = [];
+  const id = act.slice(3), M = C.momose, a = H[h.id], b = H[a.mm];
+  withCast([a.id, b.id], () => {
+    if (!id) { sayLine(a, ['n', '（2人のあいだに座ると、左右から同時におかずが差し出された）']); [a, b].forEach(x => { S.h[x.id].mmJeal = clamp((S.h[x.id].mmJeal || 0) + M.takeLose / 2, 0, 100); }); }
+    else { const win = H[id], lose = H[win.mm]; addAff(win, 1); S.h[lose.id].mmJeal = clamp((S.h[lose.id].mmJeal || 0) + M.takeLose, 0, 100);
+      flagsOf(win).push(win.mother ? 'mm_haruka_side' : 'mm_anzu_side'); say(win.name, line(win, 'mmTakeWin'), win.color); say(lose.name, line(lose, 'mmTakeLose'), lose.color); }
+  });
+  const added = incoming; incoming = held; Q = added.concat(Q); settled = false; render(); drawMsg();
+}
+// 攻略：2人とも特別（91）以上なら母娘ルート、そうでなければ1人だけ（もう1人は身を引く）
+function mmCapture(h) {
+  const st = S.h[h.id], o = H[h.mm], os = S.h[o.id];
+  if (os.aff >= 91 && !os.mmStop) {
+    [h, o].forEach(x => { const s = S.h[x.id]; s.captured = true; s.capturedDay = S.day; s.wary = 0; flagsOf(x).push('mm_secret'); });
+    sfx('capture'); const mom = h.mother ? h : o;
+    if (!withCastTry([h.id, o.id], mom, 'mmCapture')) withCast([h.id, o.id], () => { speak(mom, 'mmCapture'); speak(H[mom.mm], 'mmCapture'); narr('（——部屋の灯りを消した）'); narr('（翌朝。3人で、朝ごはんを囲んだ）'); });
+    narr(`♥ ${h.name}と${o.name}を攻略した！（母娘ルート・${S.day}日目）　3人の、秘密の関係が始まった。`);
+    mansionUnlockCheck(); return;
+  }
+  capture(h); flagsOf(h).push(h.mother ? 'hr_secret' : 'az_lover');
+  os.mmStop = true; speak(o, 'mmResign'); narr(`（${o.name}は、それ以上なにも言わなかった）`);
+}
+
 /* ---------- 外のヒロイン（v2.3） ---------- */
 // その場所に今いる外のヒロイン（any＝時間を問わず）
 const outAt = (place, any) => HS().filter(h => isOut(h) && (h.place === place || (outPlace(h) || {}).outing === place) && (any || present(h)));
@@ -1380,6 +1434,7 @@ function pickChoice(i) {
   const item = Q[idx]; if (!item || !item.choice) return;
   Q.splice(0, idx + 1);
   const { h, sc, ctx, list } = item.choice, c = list[i];
+  if (c.sysAct && c.sysAct.startsWith('mm:')) { Q = Q.slice(); settled = false; mmTake(h, c.sysAct); return; }   // 桃瀬母娘：取り合い
   if (c.sysAct && c.sysAct.startsWith('out:')) { Q = Q.slice(); settled = false; outAction(h, c.sysAct); return; }   // 外のヒロイン：一緒に食べる
   if (c.sysAct && c.sysAct.startsWith('hand:')) { Q = Q.slice(); settled = false; handAction(h, c.sysAct); return; }   // F4 手渡し
   if (c.sysAct) { Q = Q.slice(); settled = false; inviteAction(h, c.sysAct); return; }   // 自室に呼んだあとの選択（手料理／夜を過ごす）
@@ -1445,6 +1500,7 @@ function night(silent) {
       if (!/大学|学生/.test(h.job || '') && st.stage >= 6 && st.met && ((mo >= 4 && mo <= 6) || (mo >= 9 && mo <= 11)) && st.dressYear !== yearOf() && Math.random() < 0.03) { st.dressYear = yearOf(); st.partyDress = true; } }
     // キャラ専用（夜）
     if (h.id === 'aoi') st.jeal = Math.max(0, (st.jeal || 0) - 8);
+    if (h.mm) { st.mmJeal = Math.max(0, (st.mmJeal || 0) - (C.momose.decay || 8)); if (st.mmYake === S.day) st.intake += C.momose.yakeKcal || 900; }   // 桃瀬母娘：嫉妬は毎晩下がる・やけ食い
     if (h.id === 'sumire') {
       if (st.focus && S.day >= st.focus.until) { st.focus = null; if (st.stash) { st.intake += Math.round(st.stash * 1.1); st.stash = 0; st.stashPending = true; rep.events.push('すみれのデザインが完成したらしい。ため込んでいた差し入れを、一気に平らげたようだ。'); } }
       else if (!st.focus && st.met && Math.random() < 0.12) st.focus = { until: S.day + 2 + Math.floor(Math.random() * 3) };
@@ -2140,6 +2196,7 @@ function roomHTML(h) {
       ${st.clothes ? `<div class="desc">服：上 ${CS[st.clothes.top].name}／下 ${CS[st.clothes.bottom].name}。${esc(tightText(h, st))}</div>` : ''}
       <div class="row"><span>満腹</span><span class="num">${st.full}／${capOf(st)}</span></div>
       <div class="bar full"><i style="width:${st.full / capOf(st) * 100}%"></i></div>
+      ${h.mm && mmOn(h) ? `<div class="row"><span>嫉妬（${esc(shortName(H[h.mm]))}に）</span><span class="num">${Math.round(st.mmJeal || 0)}／100${(st.mmJeal || 0) >= C.momose.rivalAt ? '（張り合い食い）' : ''}</span></div>` : ''}
       ${h.id === 'aoi' ? `<div class="row"><span>嫉妬</span><span class="num">${Math.round(st.jeal || 0)}／100${(st.jeal || 0) >= 50 ? '（やけ食い寸前）' : ''}</span></div>` : ''}
       ${h.id === 'mariko' && marikoRank(st).shop ? `<div class="row"><span>勤め先</span><span>${esc(marikoRank(st).shop)}（${esc(marikoRank(st).name)}）</span></div>` : ''}
       ${h.id === 'karen' ? `<div class="row"><span>フォロワー</span><span class="num">${karenFollowers(st)}万人${karenCheat(st) ? '・今日はチートデイ（差し入れ2倍）' : ''}</span></div>` : ''}
@@ -2376,6 +2433,7 @@ function giftMul(h, st, f) {
   if (h.id === 'aoi' && st.yake === S.day) m *= 1.5;
   if (h.id === 'karen' && karenCheat(st)) m *= 2;
   if (h.id === 'himeka' && st.order === f.id) m *= 1.5;
+  if (h.mm && (st.mmJeal || 0) >= ((C.momose || {}).rivalAt || 50)) m *= (C.momose || {}).rivalRate || 1.3;   // 桃瀬母娘：張り合い食い
   return m;
 }
 // 葵の嫉妬：ほかの住人に食べさせると上がる
@@ -3120,6 +3178,7 @@ const ACT = {
     // キャラ専用（優先）。どれか1つ出たら、ふつうのあいさつは出さない
     const special = (() => {
       if (h.id === 'himeka' && st.stage >= 13 && !st.route && pickScene(h, 'route')) { tryScene(h, 'route'); return true; }   // ルート分岐を最優先
+      if (h.mm && mmVisit(h)) return true;   // 桃瀬母娘：宣戦布告・取り合い（v2.4）
       // E1 床のきしみ（ひだまり荘だけ）
       if (bldOf(h) === 'apartment') {
         const fl = flagsOf(h);
@@ -3166,7 +3225,7 @@ const ACT = {
       if (h.twinOf && S.h[h.twinOf] && S.h[h.twinOf].stage - st.stage >= 2 && S.day - (st.gapDay || -99) >= 14) {
         st.gapDay = S.day; if (withCastTry([h.id, h.twinOf], h, 'twinGap')) { const tw = S.h[h.twinOf]; tw.habit = clamp(tw.habit + 0.02, 0, 1); st.habit = clamp(st.habit + 0.02, 0, 1); return true; }
       }
-      if (h.twinOf && S.h.mio && S.h.nagisa && (isWeekend() || slotName() === '夜') && present(H.mio) && present(H.nagisa)) {
+      if ((h.id === 'mio' || h.id === 'nagisa') && S.h.mio && S.h.nagisa && (isWeekend() || slotName() === '夜') && present(H.mio) && present(H.nagisa)) {
         const sp = SPX();
         if (!sp.swap1 && S.h.mio.stage <= 4 && S.h.nagisa.stage <= 4 && S.h.mio.aff >= 35 && S.h.nagisa.aff >= 35) { sp.swap1 = true; if (withCastTry(['mio', 'nagisa'], H.mio, 'twinSwap')) return true; }
         if (!sp.swap2 && S.h.mio.stage >= 13 && S.h.nagisa.stage >= 13) { sp.swap2 = true; if (withCastTry(['mio', 'nagisa'], H.mio, 'twinSwap2')) return true; }
@@ -3237,7 +3296,7 @@ const ACT = {
     S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
     const tr = eatTrack(h, st, f.id);   // 飽き・ハマり（S2）
     const kcalG = Math.round(f.kcal * giftMul(h, st, f) * (tr === 'bored' ? 0.8 : 1));
-    st.full += f.full; st.intake += kcalG; st.gifts++; sfx('gift'); (st.tagsToday = st.tagsToday || []).push(...f.tags);
+    st.full += f.full; st.intake += kcalG; st.gifts++; sfx('gift'); mmJealous(h); (st.tagsToday = st.tagsToday || []).push(...f.tags);
     aoiJealous(h);
     if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
     // 深夜の差し入れ（夜食）は、物によって胃袋（満腹ゲージの上限）が少し広がる
@@ -3251,6 +3310,7 @@ const ACT = {
       st.intake -= k; tw.intake += k;
       narr(`（${shortName(H[h.twinOf])}が「おすそわけ」と言って、${Math.round(r * 10)}割ほど食べた）`);
     }
+    if (h.mm && (st.mmJeal || 0) >= (C.momose.rivalAt || 50)) narr(`（${shortName(H[h.mm])}に負けたくないのか、${shortName(h)}はいつもより多めに食べている）`);
     st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
     const good = f.tags.filter(t => isLike(h, st, t));
     if (tr === 'bored') { speak(h, 'bored'); }
@@ -3329,7 +3389,7 @@ const ACT = {
     const trM = rcp ? eatTrack(h, st, 'r:' + rcp.id) : place ? eatTrack(h, st, 'p:' + place.id) : null;
     const kcal = Math.round(m.kcal * (rcp && hasFac('cooker') ? 1.2 : 1) * (trM === 'bored' ? 0.8 : 1));
     if (rcp) narr(`（${rcp.name}を作った）`);
-    S.money -= m.price; st.full += m.full; st.intake += kcal; if (lateM) st.ateLate = S.day; else st.ate = true; sfx('eat'); if (place) (st.tagsToday = st.tagsToday || []).push(place.likeTag, ...({ jiro: ['garlic'], yakiniku: ['garlic'] }[place.id] || []));
+    S.money -= m.price; st.full += m.full; st.intake += kcal; if (lateM) st.ateLate = S.day; else st.ate = true; sfx('eat'); mmJealous(h, 1.5); if (place) (st.tagsToday = st.tagsToday || []).push(place.likeTag, ...({ jiro: ['garlic'], yakiniku: ['garlic'] }[place.id] || []));
     aoiJealous(h);
     if (d.kind === 'eatOut') {
       if (place && st.examParty && S.day - st.examParty <= 1) { st.examParty = null; addAff(h, 3); narr('（打ち上げ。今日は、とことん食べる日だ）'); }
