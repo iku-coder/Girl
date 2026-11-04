@@ -1542,9 +1542,22 @@ function updateBg() {
   bgmUpdate();
   el.classList.toggle('bright', screen === 'title' || !!(S && S.sceneBg));
   if (key === bgKey) return; bgKey = key;
-  const ext = window.BG_EXT || '.png';
-  el.style.backgroundImage = `url("${C.bgDir || 'bg'}/${name}${ext}"), ${fallbackBg(kind, time)}`;
+  // 読み込みが終わってから切り替える（その間は前の背景のまま。間に何もない画面をはさまない）
+  const url = bgUrl(name), want = key;
+  loadBg(url).then(ok => { if (bgKey !== want) return; el.style.backgroundImage = ok ? `url("${url}")` : fallbackBg(kind, time); });
 }
+const bgUrl = name => `${C.bgDir || 'bg'}/${name}${window.BG_EXT || '.png'}`;
+const BG_CACHE = {}, BG_KEEP = [];
+function loadBg(url) {
+  return BG_CACHE[url] || (BG_CACHE[url] = new Promise(res => {
+    const im = new Image(); BG_KEEP.push(im);
+    im.onload = () => (im.decode ? im.decode() : Promise.resolve()).catch(() => {}).then(() => res(true));
+    im.onerror = () => res(false); im.src = url;
+  }));
+}
+// 背景絵を少しずつ先読みしておく（1枚ずつ。切り替えの待ち時間をなくす）
+const BG_NAMES = ['apartment_evening', 'apartment_morning', 'apartment_night', 'apartment_noon', 'eatout_famires_noon', 'eatout_izakaya_night', 'eatout_teishoku_night', 'eatout_teishoku_noon', 'entrance_evening', 'entrance_morning', 'entrance_night', 'entrance_noon', 'hall_evening', 'hall_night', 'hall_noon', 'mansion_ext_evening', 'mansion_ext_morning', 'mansion_ext_night', 'mansion_ext_noon', 'room101_evening', 'room101_morning', 'room101_night', 'room101_noon', 'room_heroine_night', 'room_heroine_noon', 'room_mansion_night', 'room_mansion_noon', 'shrine_evening', 'shrine_matsuri_night', 'shrine_noon', 'shrine_shogatsu_noon', 'town_conveni_night', 'town_conveni_noon', 'town_depa_noon', 'town_park_evening', 'town_park_noon', 'town_sento_evening', 'town_sento_night', 'town_sento_noon', 'town_shotengai_evening', 'town_shotengai_noon', 'town_station_evening', 'town_station_morning', 'town_station_night', 'town_station_noon', 'town_super_evening', 'town_super_noon', 'univ_cafeteria_noon', 'univ_campus_evening', 'univ_campus_noon'];
+setTimeout(function pre(i = 0) { if (i >= BG_NAMES.length) return; loadBg(bgUrl(BG_NAMES[i])).then(() => setTimeout(() => pre(i + 1), 150)); }, 1500);
 
 /* ---------- BGM・効果音（v2.2。audio/bgm/*.mp3・audio/se/*.mp3。tools/audio/synth.py で合成） ---------- */
 const SND = (() => {
