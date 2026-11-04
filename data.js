@@ -297,9 +297,9 @@ window.GAME_DATA = {
       { id: 'uni',       name: '大学',       note: '平日の朝・昼', slots: ['朝', '昼'], weekday: true },
       { id: 'job',       name: 'アルバイト', note: 'ファミレス・昼・夕', slots: ['昼', '夕'] },
       { id: 'conveni',   name: 'コンビニ',   note: '朝〜夜・買い出し', slots: ['朝', '昼', '夕', '夜'], store: true, bg: 'supermarket' },
-      { id: 'super',     name: 'スーパー',   note: '朝〜夕・買い出し', slots: ['朝', '昼', '夕'], store: true, bg: 'super' },
+      { id: 'super',     name: 'スーパー',   note: '朝〜夜・買い出し', slots: ['朝', '昼', '夕', '夜'], store: true, bg: 'super' },
       { id: 'shotengai', name: '商店街',     note: '昼・夕・買い出し', slots: ['昼', '夕'], store: true, bg: 'shotengai' },
-      { id: 'depa',      name: 'デパート',   note: '昼・夕・買い出し', slots: ['昼', '夕'], store: true, bg: 'depa' },
+      { id: 'depa',      name: 'デパート',   note: '昼・夕・買い出し（夜は閉店前の値引き）', slots: ['昼', '夕', '夜'], store: true, bg: 'depa' },
       { id: 'sento',     name: '銭湯',       note: '夕・夜（休日は朝も）', slots: ['夕', '夜'], weekendMorning: true },
       { id: 'shrine',    name: '陽守神社',   note: '昼・夕・お供え', slots: ['昼', '夕'] },
       { id: 'chonaikai', name: '町内会の集会所', note: '昼・夕・町内会の行事', slots: ['昼', '夕'], bg: 'town' }
@@ -356,13 +356,23 @@ window.GAME_DATA = {
         shrine:    { label: '陽守神社',             outing: 'shrine',    bg: 'shrine',    food: { name: 'おさがりのいなり寿司とお神酒', kcal: 600,  full: 16, price: 0,   tag: 'meal' } },
         job:       { label: 'ファミレス（バイト先）', outing: 'job',       bg: 'famires',   food: { name: '閉店後のまかない',             kcal: 900,  full: 26, price: 0,   tag: 'fried', slots: ['夕', '夜'] } },
         sento:     { label: '松の湯の番台',         outing: 'sento',     bg: 'sento',     food: { name: '湯上がりのコーヒー牛乳とアイス', kcal: 400,  full: 10, price: 300, tag: 'sweet' } },
-        depa:      { label: 'デパ地下の洋菓子売り場', outing: 'depa',      bg: 'depa',      food: { name: '試食のケーキ（味見）',         kcal: 450,  full: 10, price: 0,   tag: 'sweet' } },
+        depa:      { label: 'デパ地下の洋菓子売り場', outing: 'depa',      bg: 'depa',      food: { name: '試食のケーキ（味見）',         kcal: 450,  full: 10, price: 0,   tag: 'sweet' },
+                     foodNight: { name: '閉店前の値引きケーキ', kcal: 1000, full: 24, price: 500, tag: 'sweet' } },
         delivery:  { label: 'アパートの前（配達）',   outing: null,        bg: 'entrance',  food: { name: '冷たい飲み物とおにぎり',       kcal: 350,  full: 10, price: 300, tag: 'meal' } },
         post:      { label: '郵便受けの前（配達）',   outing: null,        bg: 'entrance',  food: { name: '配達先でもらったお菓子のおすそわけ', kcal: 250, full: 6, price: 0, tag: 'sweet' } },
         chonaikai: { label: '町内会の集会所',       outing: 'chonaikai', bg: 'town',      food: { name: '炊き出しのとん汁とおにぎり',   kcal: 800,  full: 22, price: 0,   tag: 'meal' } },
-        super:     { label: 'まるとくマート',       outing: 'super',     bg: 'super',     food: { name: '値引きの惣菜と缶ビール',       kcal: 900,  full: 24, price: 600, tag: 'fried' } },
+        super:     { label: 'まるとくマート',       outing: 'super',     bg: 'super',     food: { name: '試食のコロッケ',               kcal: 300,  full: 8,  price: 0,   tag: 'fried' },
+                     foodNight: { name: '閉店後の搬入口で、値引きの惣菜と缶ビール', kcal: 1000, full: 26, price: 600, tag: 'fried' } },
         conveni:   { label: 'ひだまりマート',       outing: 'conveni',   bg: 'supermarket', food: { name: '新作スイーツとホットスナックの味見', kcal: 600, full: 16, price: 400, tag: 'fried' } }
       },
+      // キャラ固有（〈ゲームバランスの提案〉）
+      naorai: { kcal: 1500, habit: 0.03, affection: 3 },              // 紗月：神社の行事（初詣・夏祭り・神楽）のあとの直会。千早も一緒に
+      offerShare: 0.3,                                                // 紗月：お供えのおさがりを、その場にいれば3割もらう
+      maoWeek: { many: 3, few: 1, affection: 2, binge: 700 },        // 真央：その週のバイトが3回以上なら休めて親密度+2、1回以下なら人手不足で閉店後のまとめ食い（毎晩+700）
+      makanaiPerCook: 3,                                              // 真央：閉店後のまかないは、料理の腕1につき+3kcal
+      cleanup: { day: 0, kcal: 1200, building: 5, affection: 3 },    // 京子：毎月最初の日曜は町内の一斉清掃と炊き出し（集会所）
+      bargain: { from: '12-27', to: '12-30', chance: 0.5 },          // 美鈴と玲奈：年末の大売り出しの手伝い（スーパー、2人とも親密度35以上）
+      gossipCost: 0,                                                  // 夕子：住人の最近の買い物を教えてもらう（1日1回、親密度35以上）
       postChance: 0.35,                            // 平日の朝の掃除で、郵便配達に会う確率
       deliveryChance: 0.4                          // 荷物を預かったとき、配達員に会う確率（同じ人に会うのは1日1回まで）
     },
@@ -747,6 +757,7 @@ window.GAME_DATA = {
     lateMeal: ['夜食って、どうしてこんなに罪の味がするんだろうね'],
     // v2.3：外のヒロイン（キャラ固有は heroines[].lines で上書き）
     greetOut: [['あ、どうも'], ['あら、こんにちは'], ['来てくれたんだ'], ['待ってた']],
+    naorai: ['直会は、神さまのおさがりをみなでいただく大切なお勤め。…ですから、遠慮はいたしません', 'お神酒は、今日だけ。…ふふ、もう一献いただきましょうか'],
     outFood: [['…じゃあ、少しだけ'], ['いいの？ いただきます'], ['一緒に食べるの、楽しいね'], ['あなたと食べると、なんでもおいしい']],
     // v2.2：部屋に入れない親密度の人の変化に、次に会ったとき主人公が気づく（地の文。{name}＝下の名前）
     lowNoticeStage: ['（…{name}さん、前に会ったときより、ふっくらした気がする）', '（頬のあたりが、少し丸くなったような…？）', '（気のせいかな。{name}さん、少し柔らかい雰囲気になった）', '（観察眼に映る数字が、前より増えている。…やっぱり、ふっくらしたんだ）'],

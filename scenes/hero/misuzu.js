@@ -14,7 +14,7 @@ window.GAME_DATA.heroines.push({
   name: '鬼塚 美鈴', age: 35, job: 'スーパー「まるとくマート」の店長',
   height: 165, weight: 56, appetite: 1.1, color: '#5f6b66',
   likes: ['fried', 'alcohol'], dislikes: ['sweet'],
-  schedule: { weekday: ['昼', '夕'], weekend: ['昼', '夕'] },
+  schedule: { weekday: ['昼', '夕', '夜'], weekend: ['昼', '夕', '夜'] },   // 夜は閉店前・閉店後
   dailyKcal: 0,
   startAffection: 10,
   bodyType: { frame: 'natural', fat: 'apple' },

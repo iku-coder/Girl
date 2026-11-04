@@ -14,7 +14,7 @@ window.GAME_DATA.heroines.push({
   name: '甘利 まどか', age: 24, job: 'デパ地下の洋菓子店「パティスリー・ルミエール」の販売員',
   height: 157, weight: 47, appetite: 1.0, color: '#c98a4b',
   likes: ['sweet', 'cold'], dislikes: ['snack'],
-  schedule: { weekday: ['昼', '夕'], weekend: ['昼', '夕'] },
+  schedule: { weekday: ['昼', '夕', '夜'], weekend: ['昼', '夕', '夜'] },   // 夜は閉店前・閉店後
   dailyKcal: 0,
   startAffection: 10,
   bodyType: { frame: 'straight', fat: 'pear' },

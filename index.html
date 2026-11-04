@@ -1134,9 +1134,15 @@ const cheatYm = () => yearOf() + '-' + (dateOf(S.day).getMonth() + 1);
 const outAt = (place, any) => HS().filter(h => isOut(h) && (h.place === place || (outPlace(h) || {}).outing === place) && (any || present(h)));
 // 外出の画面から会いに行ける人（行き先が外出にある人だけ。配達の2人は向こうから来る）
 const outMeets = () => slotName() === '深夜' ? [] : HS().filter(h => isOut(h) && outPlace(h) && outPlace(h).outing && present(h) && (outPlace(h).outing !== 'job'));
-const outFoodOk = (h, st) => { const F = (outPlace(h) || {}).food; return !!F && st.outFoodDay !== S.day && (!F.slots || F.slots.includes(slotName())) && S.money >= (F.price || 0) && !st.diet; };
+// その場の食べ物（夜は閉店前・閉店後の別メニューがある場所も。ファミレスのまかないは料理の腕で増える）
+function outFoodOf(h) {
+  const P = outPlace(h) || {}; let F = slotName() === '夜' && P.foodNight ? P.foodNight : P.food; if (!F) return null;
+  if (h.place === 'job') F = Object.assign({}, F, { kcal: F.kcal + Math.round(S.cook * ((C.outside || {}).makanaiPerCook || 0)), name: S.cook >= 30 ? 'あなたが作る、閉店後のまかない' : F.name });
+  return F;
+}
+const outFoodOk = (h, st) => { const F = outFoodOf(h); return !!F && st.outFoodDay !== S.day && (!F.slots || F.slots.includes(slotName())) && S.money >= (F.price || 0) && !st.diet; };
 function outFood(h) {   // その場で一緒に食べる（1日1回）
-  const st = S.h[h.id], F = outPlace(h).food; if (!outFoodOk(h, st)) return false;
+  const st = S.h[h.id], F = outFoodOf(h); if (!outFoodOk(h, st)) return false;
   if (st.full + F.full > capOf(st)) { if (!eatSay(h, 'full')) speak(h, 'full'); return false; }
   st.outFoodDay = S.day; S.money -= F.price || 0; st.full += F.full; st.intake += F.kcal; st.habit = clamp(st.habit + C.habitPerGift, 0, 1); (st.tagsToday = st.tagsToday || []).push(F.tag);
   sfx('eat'); narr(`（${shortName(h)}と、${F.name}${F.price ? `（${yen(F.price)}）` : ''}）`); speak(h, 'outFood'); addAff(h, isLike(h, st, F.tag) ? 2 : 1);
@@ -1146,6 +1152,19 @@ function outFood(h) {   // その場で一緒に食べる（1日1回）
 function meetOut(h) {
   const st = S.h[h.id], P = outPlace(h); if (!P) return;
   sceneBg(P.bg);
+  // 美鈴と玲奈：年末の大売り出しの手伝い（2人とも顔なじみ以上、年1回）
+  { const B = C.outside.bargain, r = H.reina, rs = r && S.h.reina;
+    if (h.id === 'misuzu' && B && rs && rs.met && st.aff >= 35 && rs.aff >= 35 && inRange(mmdd(), B.from, B.to) && S.bargainYear !== yearOf() && Math.random() < B.chance) {
+      S.bargainYear = yearOf(); S.money += 5000;
+      withCast(['misuzu', 'reina'], () => {
+        narr('（年末の大売り出し。美鈴店長に頼まれて、玲奈と一緒に品出しとレジを手伝った。手伝い代 ¥5,000）');
+        speak(h, 'talk'); speak(r, 'talk');
+        narr('（閉店後、売れ残りのオードブルとお寿司を、3人で搬入口で平らげた）');
+        [h, r].forEach(x => { const xs = S.h[x.id]; xs.intake += 1500; xs.habit = clamp(xs.habit + 0.03, 0, 1); addAff(x, 3); });
+        pairAdd('misuzu', 'reina', 5);
+      });
+      S.view = { type: 'self' }; advanceSlot(); return;
+    } }
   if (canVisit(st)) { S.view = { type: 'room', id: h.id }; st.visits = (st.visits || 0) + 1; sfx('door'); narr(`（${P.label}で、${h.name}に会った）`); if (!tryScene(h, 'meetOut')) speak(h, 'greet'); render(); return; }
   meetOutAuto(h); S.view = { type: 'self' }; advanceSlot();
 }
@@ -1156,7 +1175,8 @@ function meetOutAuto(h) {   // 時間を進めない、短い出会い（バイ�
   if (!tryScene(h, 'meetOut')) speak(h, 'greetOut');
   addAff(h, (C.outside || {}).meetAffection || 3);
   if (outFoodOk(h, st)) {
-    incoming.push({ choice: { h, sc: null, ctx: {}, list: [{ text: `（${P.food.name}を一緒に${P.food.price ? `・${yen(P.food.price)}` : ''}）`, sysAct: 'out:food' }, { text: '（今日は話すだけにする）', sysAct: 'out:' }], prompt: 'どうする？' } });
+    const F = outFoodOf(h);
+    incoming.push({ choice: { h, sc: null, ctx: {}, list: [{ text: `（${F.name}を一緒に${F.price ? `・${yen(F.price)}` : ''}）`, sysAct: 'out:food' }, { text: '（今日は話すだけにする）', sysAct: 'out:' }], prompt: 'どうする？' } });
     if (!flushPending) { flushPending = true; queueMicrotask(flush); }
   }
   handOffer(h);
@@ -1448,6 +1468,7 @@ function night(silent) {
       const top = Math.max(st.affTopTier || 0, tierOf(st.aff)), floor = (D.affectionTiers[top] || { min: 0 }).min;
       if (gap >= AD.days && top >= (AD.minTier || 0) && st.aff > floor) st.aff = Math.max(floor, st.aff - AD.amount); } }
     doorNight(h, st, rep);   // F1 ドアノブの差し入れ
+    if (h.id === 'mao' && S.maoBinge > S.day) st.intake += (C.outside.maoWeek || {}).binge || 0;   // 人手不足のまとめ食い
     if (h.dailyKcal && st.met && !(st.away && S.day <= st.away.until)) st.intake += h.dailyKcal;   // 外のヒロイン：常連さんの差し入れなど（v2.3）
     if (!st.diet && !(st.away && S.day <= st.away.until)) { if (hasFac('vending') && bldOf(h) === 'apartment') st.intake += C.vending.kcal; st.intake += townSnack(h, st); }   // F5
     // ダイエットとリバウンド
@@ -1550,6 +1571,11 @@ function night(silent) {
   if (mmdd() === '03-31') { const ps = (S.taxPaid || []).filter(x => yearOf(x.day) === yearOf()); if (ps.length >= 4 && ps.every(x => !x.late)) S.taxYearOk = true; S.yearResult = gradeJudge(); if (S.yearResult) rep.events.push(S.yearResult); }
   // S9 実績
   achvCheck().forEach(a => rep.events.push(`実績「${a.name}」を達成した！`));
+  // 真央：週の終わり（日曜の夜）に、その週のバイトの回数で
+  if (dow() === 6 && H.mao && active(H.mao) && S.h.mao.met) { const W = C.outside.maoWeek, n = S.jobWeek || 0;
+    if (n >= W.many) { addAff(H.mao, W.affection); rep.events.push(`今週はバイトにたくさん入ったので、真央店長がひさしぶりに休めたらしい。`); }
+    else if (n <= W.few) { S.maoBinge = S.day + 8; rep.events.push(`ファミレスが人手不足らしい。真央店長、閉店後にまかないをまとめ食いしているとか…`); }
+    S.jobWeek = 0; }
   rep.date = dateText();
   S.day++; S.slot = 0;
   // F5 街の新しい店（決まった日に開店）
@@ -2097,7 +2123,8 @@ function roomHTML(h) {
       <button class="btn" data-act="cookMenu" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
       ${h.id === 'shiori' && st.aff >= 35 ? `<button class="btn" data-act="lesson" ${S.cook >= 2 && st.lessonDay !== S.day ? '' : 'disabled'}>料理を教える<small>${S.cook < 2 ? '料理の腕2から' : st.lessonDay === S.day ? '今日はもう教えた' : '一緒に作って、二人で食べる・時間が進む'}</small></button>` : ''}
       ${h.id === 'rio' && S.h.hinata && S.h.hinata.aff >= 70 ? `<button class="btn" data-act="giftOpenH" ${invCount() ? '' : 'disabled'}>ひなたと一緒に食べる<small>${invCount() ? 'ひなたの「一緒に食べよ？」は断れない' : '手持ちなし'}</small></button>` : ''}
-      ${isOut(h) && outPlace(h) ? (() => { const F = outPlace(h).food, ok = outFoodOk(h, st); return `<button class="btn" data-act="outFood" ${ok ? '' : 'disabled'}>${esc(F.name)}<small>${st.outFoodDay === S.day ? '今日はもう食べた' : `${F.kcal}kcal・満腹+${F.full}${F.price ? '・' + yen(F.price) : ''}`}</small></button>`; })() : ''}
+      ${isOut(h) && h.id === 'yuko' && st.aff >= 35 ? `<button class="btn" data-act="yukoGossip" ${st.gossipDay === S.day ? 'disabled' : ''}>住人の最近の買い物を聞く<small>${st.gossipDay === S.day ? '今日はもう聞いた' : '好物と食べる量が分かる（1日1回）'}</small></button>` : ''}
+      ${isOut(h) && outPlace(h) ? (() => { const F = outFoodOf(h) || outPlace(h).food, ok = outFoodOk(h, st); return `<button class="btn" data-act="outFood" ${ok ? '' : 'disabled'}>${esc(F.name)}<small>${st.outFoodDay === S.day ? '今日はもう食べた' : `${F.kcal}kcal・満腹+${F.full}${F.price ? '・' + yen(F.price) : ''}`}</small></button>`; })() : ''}
       ${C.cheatDay ? (() => { const used = st.cheatMonth === cheatYm(), on = isCheat(st); return `<button class="btn ${on ? 'primary' : ''}" data-act="cheatDay" ${!on && !used ? '' : 'disabled'}>${on ? 'チートデイ中' : 'チートデイにする'}<small>${on ? `満腹の上限 ${capOf(st)}・食習慣の伸び×2` : used ? '今月はもう使った' : '月1回／満腹×2・食生活の効果×2・深夜×1.5'}</small></button>`; })() : ''}
       ${st.target && st.stage >= st.target ? `<button class="btn" data-act="keepToggle">${st.keep ? '体型を保つのをやめる' : '体型を保つ'}<small>${st.keep ? `維持中（段階${st.target}）` : `目標の段階${st.target}に到達`}</small></button>` : ''}
       ${st.clothesNew && st.aff >= C.clothesTrip.minAffection ? `<button class="btn wide" data-act="clothesTrip" ${S.money >= C.clothesTrip.price ? '' : 'disabled'}>服を買いに行く<small>サイズが上がった服を一緒に選ぶ／${yen(C.clothesTrip.price)}・時間が進む</small></button>` : ''}
@@ -2735,6 +2762,17 @@ const ACT = {
     if (o.id === 'job') return ACT.job();
     if (o.id === 'sento') return ACT.sentoOpen();
     if (o.id === 'shrine') return ACT.offerOpen();
+    if (o.id === 'chonaikai' && dow() === 6 && dateOf(S.day).getDate() <= 7 && S.cleanupDone !== yearOf() + '-' + dateOf(S.day).getMonth()) {   // 毎月最初の日曜：一斉清掃と炊き出し
+      S.cleanupDone = yearOf() + '-' + dateOf(S.day).getMonth(); sceneBg('town'); const CU = C.outside.cleanup;
+      const k = outAt('chonaikai', true)[0], rs = HSR().filter(x => S.h[x.id].met && !(S.h[x.id].away && S.day <= S.h[x.id].away.until)).sort(() => Math.random() - 0.5).slice(0, 3), ks = (k ? [k] : []).concat(rs);
+      S.building = clamp(S.building + CU.building, 0, 100);
+      withCast(ks.length >= 2 ? ks.map(x => x.id) : null, () => {
+        narr(`（町内の一斉清掃。ひだまり荘のまわりの側溝もきれいになった。建物の状態 +${CU.building}）`);
+        narr('（終わったあとは、集会所で炊き出し。とん汁とおにぎりが山のように並んでいる）');
+        ks.forEach(x => { const xs = S.h[x.id]; xs.intake += CU.kcal; xs.habit = clamp(xs.habit + 0.02, 0, 1); addAff(x, CU.affection); speak(x, 'outFood'); });
+      });
+      S.view = { type: 'self' }; advanceSlot(); return;
+    }
     if (o.id === 'chonaikai') { sceneBg(o.bg || 'town'); const k = outAt('chonaikai')[0]; if (k) { meetOut(k); return; } narr(pick(['町内会の集会所で、回覧板の仕分けを手伝った。', '集会所の掃除を手伝った。お茶菓子をもらった。'])); S.view = { type: 'self' }; advanceSlot(); return; }
   },
   achvOpen() { openModal('achv', achvHTML()); },
@@ -2809,6 +2847,16 @@ const ACT = {
   facOpen() { openModal('fac', facHTML()); },
   meetOut(d) { const h = H[d.id]; if (!h) return; closeModal(); if (h.place === 'sento' || (outPlace(h) || {}).outing === 'sento') { S.money -= C.sento.price / 2; S.sentoDay = S.day; } meetOut(h); },
   outFood() { const h = room(); if (h && outFood(h)) render(); },
+  yukoGossip() {   // 夕子：住人の最近の買い物（好物と食べる量のヒント）
+    const h = room(), st = S.h[h.id]; if (!h || h.id !== 'yuko' || st.gossipDay === S.day) return; st.gossipDay = S.day;
+    const hs = HSR().filter(x => S.h[x.id].met).sort(() => Math.random() - 0.5).slice(0, 3);
+    if (!hs.length) { speak(h, 'talk'); render(); return; }
+    say(h.name, 'うちのお客さんのこと？ …ほかの人には内緒よ', h.color);
+    hs.forEach(x => { const xs = S.h[x.id], tg = (x.likes || []).concat(Object.keys(xs.acquired || {})).find(t => xs.known[t] !== 'like') || (x.likes || [])[0];
+      if (tg) xs.known[tg] = 'like';
+      say(h.name, `${x.name.split(/[ 　]/)[0]}さん、最近${tg ? (C.tagNames[tg] || tg) + 'をよく買っていくわね。' : 'よく来るわね。'}食べる量は…「${eatLabel(xs)}」ってところかしら`, h.color); });
+    narr('（住人の好物が分かった。差し入れの画面に「好き」と出る）'); addAff(h, 1); render();
+  },
   doorHang(d) {
     const h = H[d.h], st = S.h[h.id], f = FOOD[d.id]; if (!h || !f || !S.inv[f.id] || (st.door && st.door.day === S.day)) return;
     S.inv[f.id]--; if (!S.inv[f.id]) delete S.inv[f.id];
@@ -2900,6 +2948,14 @@ const ACT = {
     if (e.bg === 'room101') S.view = { type: 'self' }; else sceneBg(e.bg === 'apartment' ? 'entrance' : e.bg);
     st.capBonusDay = S.day; st.intake += e.kcal; st.ate = true; st.habit = clamp(st.habit + 0.02, 0, 1); addAff(h, 4);
     if (!tryScene(h, 'season', { season: e.id })) { narr(`（${h.name}と、${e.name}を楽しんだ）`); speak(h, 'greet'); }
+    // 紗月：神社の行事のあとの直会（なおらい）。千早も一緒に、お神酒と料理
+    if (['shogatsu', 'matsuri', 'shrine'].includes(e.bg) && H.satsuki && active(H.satsuki) && S.h.satsuki.met) {
+      const N = C.outside.naorai, ks = [H.satsuki, H.chihaya].filter(x => x && active(x) && S.h[x.id].met);
+      withCast(ks.length >= 2 ? ks.map(x => x.id) : null, () => {
+        narr('（行事のあとは、社務所で氏子さんたちとの直会。お神酒と料理が、次々に運ばれてくる）');
+        ks.forEach(x => { const xs = S.h[x.id]; xs.intake += N.kcal; xs.habit = clamp(xs.habit + N.habit, 0, 1); xs.capBonusDay = S.day; addAff(x, N.affection); speak(x, x.id === 'satsuki' ? 'naorai' : 'outFood'); });
+      });
+    }
     S.view = { type: 'self' }; advanceSlot();
   },
   bday(d) {
@@ -2920,7 +2976,7 @@ const ACT = {
     S.view = { type: 'map' }; advanceSlot();
   },
   offerOpen() { openModal('offer', offerHTML()); },
-  shrineVisit() { closeModal(); SPX().offerDay = S.day; sceneBg('shrine'); narr('（陽守神社にお参りした。鈴を鳴らして、手を合わせる）');
+  shrineVisit() { closeModal(); SPX().offerDay = S.day; sceneBg('shrine'); narr('（陽守神社にお参りした。鈴を鳴らして、手を合わせる）'); { const sa = outAt('shrine')[0]; if (sa && S.h.satsuki.met) { addAff(sa, 1); narr('（掃き掃除をしていた紗月が、こちらに小さく会釈した）'); } }
     const h = H.chihaya; if (h && S.h.chihaya && S.h.chihaya.aff >= 35 && Math.random() < 0.5) { narr('（境内を掃いていた千早が、こちらに気づいて会釈した）'); speak(h, 'greet'); }
     advanceSlot(); },
   offer(d) {
@@ -2929,6 +2985,8 @@ const ACT = {
     st.intake += f.kcal; st.habit = clamp(st.habit + 0.01, 0, 1); addAff(h, 1); SPX().offerDay = S.day;
     sceneBg('shrine'); narr(`（陽守神社の拝殿に、${f.name}をお供えした）`);
     narr(`（しばらくして、社務所の奥から千早が出てきた）`); speak(h, 'offering');
+    { const sa = outAt('shrine')[0]; if (sa && S.h.satsuki.met) { const k = Math.round(f.kcal * (C.outside.offerShare || 0.3)); st.intake -= k; S.h.satsuki.intake += k; addAff(sa, 1);
+      narr(`（紗月が「わたくしも、おさがりを少し」と、${Math.round((C.outside.offerShare || 0.3) * 10)}割ほど持っていった）`); } }
     advanceSlot();
   },
   clothesTrip() {
@@ -3301,6 +3359,7 @@ const ACT = {
     S.money += C.partTimePay; sceneBg('famires'); sfx('coin');
     narr(`ファミレスでバイトをした。${yen(C.partTimePay)} を受け取った。`);
     if (slotName() === '夕' && C.jobLeftovers) { const f = FOOD[pick(C.jobLeftovers.foods)]; if (f) { S.inv[f.id] = (S.inv[f.id] || 0) + 1; narr(`（店長に「余っちゃったから持ってって」と、${f.name}を持たされた。差し入れに使える）`); } }
+    S.jobWeek = (S.jobWeek || 0) + 1;   // 真央の人手不足（週ごと）
     { const k = outAt('job')[0]; if (k) meetOutAuto(k); else encounter('job') || encounter('town'); }   // バイト先の店長（外のヒロイン）
     advanceSlot();
   },
