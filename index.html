@@ -131,6 +131,7 @@ body.talking{background:linear-gradient(to bottom,var(--ink),#0e0e14)}
 .roominfo{margin-top:12px;background:rgba(23,24,31,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .roster{display:grid;margin-top:8px}
 .rrow.link{cursor:pointer}
+.wx{font-size:11px;margin-left:6px;color:var(--muted)}
 .bubble{background:var(--panel2);border-radius:12px;padding:8px 12px;margin:8px 0;max-width:85%;font-size:14px;line-height:1.6}
 .bubble.me{margin-left:auto;background:var(--lamp);color:var(--ink)}.bubble .photo{margin-top:6px;font-size:12px;color:var(--muted)}
 .card3.sel{border-color:var(--lamp);box-shadow:0 0 0 1px var(--lamp) inset}
@@ -529,7 +530,7 @@ const slotName = () => C.slots[S.slot];
 const dateOf = day => { const d = new Date((C.startDate || '2026-04-01') + 'T00:00:00'); d.setDate(d.getDate() + day - 1); return d; };
 const dow = () => (dateOf(S.day).getDay() + 6) % 7;
 const isMonthEnd = () => dateOf(S.day + 1).getDate() === 1;
-const dateText = () => { const d = dateOf(S.day); return `${d.getMonth() + 1}/${d.getDate()}`; };
+const dateText = (day = S.day) => { const d = dateOf(day); return `${d.getMonth() + 1}/${d.getDate()}`; };
 const favorable = st => st.captured || st.aff >= C.favorableFrom;
 const canVisit = st => st.captured || st.aff >= C.visitMinAffection;
 const mod = (h, k) => (h.mods && h.mods[k] != null ? h.mods[k] : 1);
@@ -547,6 +548,7 @@ const present = h => {
   if (st && st.sick && slotName() !== '深夜') return true;       // 風邪で寝込んでいる（E3）
   // 深夜：会えるのは攻略した住人だけ（夜に部屋にいる人。真理子は仕事帰り）
   if (slotName() === '深夜') return !!(st && st.captured) && (h.id === 'mariko' || (h.id === 'rin' ? RIN_SHIFT[rinShift()].includes('夜') : (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes('夜')));
+  if (st && st.extraSlot && st.extraSlot.day === S.day && st.extraSlot.slot === slotName()) return true;   // 雨の日は家にいる（S1）
   if (h.id === 'rin') return RIN_SHIFT[rinShift()].includes(slotName());
   return (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes(slotName());
 };
@@ -910,7 +912,7 @@ function stretch(h) {
 // 出先での遭遇・会話（scenes/out/<種類>/<id>.js）。kind: campus（大学）/ job（バイト先のファミレス）/ shopping（買い出し）/ town（街中）
 const ENC_BG = { campus: 'campus', job: 'famires', shopping: 'supermarket', town: 'town' };
 function encounter(kind) {
-  if (S.tutorial || Math.random() >= ((C.encounters || {})[kind] || 0)) return false;
+  if (S.tutorial || Math.random() >= ((C.encounters || {})[kind] || 0) * (kind === 'town' && isRainy() ? 0.5 : 1)) return false;
   let pool = HS().filter(h => S.h[h.id].met && pickScene(h, kind));
   if (kind === 'campus') pool = pool.filter(h => (C.campusHeroines || []).includes(h.id));
   if (kind === 'town') { const out = pool.filter(h => !present(h)); if (out.length) pool = out; }
@@ -926,7 +928,7 @@ function morningGreet(kind = 'morning') {
   let n = 0; const seen = [];
   // 住人が多いので、1回の掃除で会うのは最大 morningGreetMax 人まで（順番はランダム）
   HS().slice().sort(() => Math.random() - 0.5).forEach(h => {
-    if (n >= (C.morningGreetMax || 2) || Math.random() >= C.morningGreetChance) return;
+    if (n >= Math.max(1, (C.morningGreetMax || 2) - (isRainy() ? 1 : 0)) || Math.random() >= C.morningGreetChance) return;
     n++;
     narr(eve ? (isWeekend() ? `${h.name}が買い物から帰ってきた。` : `${h.name}が帰ってきたところだった。`) : isWeekend() ? `${h.name}がゴミ出しに出てきた。` : `${h.name}が出かけるところだった。`);
     addAff(h, C.morningGreetAffection); seen.push(h);
@@ -935,7 +937,7 @@ function morningGreet(kind = 'morning') {
   });
   if (!n) narr('誰とも会わなかった。');
   // 住人同士のうわさ話
-  if (seen.length >= 2 && Math.random() < ((C.relations || {}).gossipChance || 0) && S.h[seen[1].id].stage >= 3) withCast([seen[0].id, seen[1].id], () => sayOther(seen[0], 'gossip', seen[1]));
+  if (seen.length >= 2 && Math.random() < ((C.relations || {}).gossipChance || 0) && S.h[seen[1].id].stage >= 3) { withCast([seen[0].id, seen[1].id], () => sayOther(seen[0], 'gossip', seen[1])); pairAdd(seen[0].id, seen[1].id, -2); }
 }
 // 留守中の荷物を預かる（昼に判定）
 function rollPackages() {
@@ -1243,8 +1245,24 @@ function night(silent) {
     else if (mmdd(S.day) === (C.endingDate || '03-31')) S.pendingEnding = 'year';
     if (S.pendingEnding) S.endYear = yearOf(); }
   { const n = phoneRoll(); if (n) rep.events.push(`スマホに、住人からのメッセージが${n}通届いた。`); }
+  // S3 仲良しの2人がごはんへ
+  { const hs = HS().filter(h => S.h[h.id].met);
+    for (let i = 0; i < hs.length; i++) for (let j = i + 1; j < hs.length; j++) {
+      const a = hs[i], b = hs[j]; if (pairVal(a.id, b.id) >= C.pairs.friend && Math.random() < C.pairs.eatTogether) {
+        [a, b].forEach(x => { const s = S.h[x.id]; s.weight = Math.min(maxW(x), Math.round((s.weight + 1200 / C.kcalPerKg * C.weightGainBoost * fatMul(s)) * 100) / 100); s.habit = clamp(s.habit + 0.02, 0, 1); });
+        rep.events.push(`${shortName(a)}と${shortName(b)}が、一緒にごはんに行ったらしい。`);
+      } } }
+  // S4 依頼：期限切れ
+  Object.entries(S.req || {}).forEach(([id, r]) => { if (S.day >= r.until) { delete S.req[id]; addAff(H[id], -2); rep.events.push(`${H[id].name}の依頼（${C.requests.types.find(x => x.id === r.type).name}）の期限が切れてしまった。`); } });
   rep.date = dateText();
-  S.day++; S.slot = 0; S.uniToday = false; S.view = { type: 'map' };
+  S.day++; S.slot = 0;
+  rollWeather();
+  S.morningNotes = taxNotices();   // 納付書・督促状（朝に知らせる）
+  // S4 依頼：新しい依頼
+  HS().forEach(h => { const st = S.h[h.id]; if (!st.met || st.aff < 35 || (S.req || {})[h.id] || Math.random() >= C.requests.chance) return;
+    const ty = pick(C.requests.types), r = { type: ty.id, until: S.day + (diffOf().requestDays || 2) };
+    if (ty.id === 'shop') r.food = pick(D.foods.filter(f => f.tags.some(t => isLike(h, st, t)))).id || 'pudding';
+    (S.req = S.req || {})[h.id] = r; }); S.uniToday = false; S.view = { type: 'map' };
   save();
   if (silent) return rep;   // まとめて進めるとき：報告は最後にまとめて出す
   nightReport = rep;
@@ -1437,7 +1455,8 @@ function render() {
   if (screen === 'title') { $('#hdr').hidden = true; main.innerHTML = titleHTML(); return; }
   $('#hdr').hidden = false;
   syncRoute();   // 姫華のルート（シーンの選択肢で立ったフラグを反映）
-  $('#hdr').innerHTML = `<div class="day num">${dateText()}<small>(${C.weekdays[dow()]})</small></div><div class="dow">${S.day}日目${isMonthEnd() ? ' <span class="chip warn">月末</span>' : ''}</div>
+  const wx = wxNow();
+  $('#hdr').innerHTML = `<div class="day num">${dateText()}<small>(${C.weekdays[dow()]})</small>${wx ? `<span class="wx" title="${WX[wx.k]}">${WXI[wx.k]}${wx.temp}℃</span>` : ''}</div><div class="dow">${S.day}日目${isMonthEnd() ? ' <span class="chip warn">月末</span>' : ''}</div>
     <div class="pips">${C.slots.map((s, i) => `<span class="pip ${i === S.slot ? 'now' : i < S.slot ? 'past' : ''}">${s}</span>`).join('')}</div>
     <div class="money num">${yen(S.money)}</div><button class="icon" data-act="menu" aria-label="メニュー">≡</button>`;
   const v = S.view;
@@ -1473,7 +1492,7 @@ function door(r, bld = 'apartment') {
   const hs = (BY_ROOM[bld + ':' + r] || []).filter(active);
   if (!hs.length) return `<button class="door empty" data-act="empty" data-room="${r}"><span class="no num">${r}</span><span class="win"></span><span class="nm muted">空室</span></button>`;
   const badgeOf = h => { const st = S.h[h.id]; const tutRent = S.tutorial && bldOf(h) === 'apartment' && !S.tutorial.done[h.id];
-    return [S.packages[h.id] ? '荷物' : '', (isMonthEnd() && !S.rentDone[h.id]) || tutRent ? '家賃' : '', !canVisit(st) && !tutRent ? '訪問不可' : ''].filter(Boolean); };
+    return [S.packages[h.id] ? '荷物' : '', (S.req || {})[h.id] ? '依頼' : '', (isMonthEnd() && !S.rentDone[h.id]) || tutRent ? '家賃' : '', !canVisit(st) && !tutRent ? '訪問不可' : ''].filter(Boolean); };
   const badges = [...new Set(hs.flatMap(badgeOf))].filter(b => b !== '訪問不可' || hs.every(h => !canVisit(S.h[h.id])));
   const names = hs.map(h => `${S.h[h.id].captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}`).join('<br>');
   const act = hs.length > 1 ? `data-act="visitRoom" data-key="${bld}:${r}"` : `data-act="visit" data-id="${hs[0].id}"`;
@@ -1517,6 +1536,7 @@ function selfHTML() {
     { act: 'prepOpen', label: '作り置き', note: S.cook >= C.prepFrom ? `${s === '深夜' ? 'その日の集計へ' : '夕・夜・深夜'}／${prepN()}食分を作って差し入れに` : `料理の腕${C.prepFrom}から`, ok: (s === '夕' || s === '夜' || s === '深夜') && S.cook >= C.prepFrom },
     { act: 'partyOpen', label: '食事会を開く', note: hasFac('nabe') ? `夕・夜／${yen(C.party.price)}／最大${partyMax()}人` : '設備の「大鍋とカセットコンロ」が必要', ok: (s === '夕' || s === '夜') && hasFac('nabe') && S.money >= C.party.price && partyCands().length > 0 },
     ...(S.h.chihaya && S.h.chihaya.met && active(H.chihaya) ? [{ act: 'offerOpen', label: '神社にお供えする', note: '昼・夕／千早が「おさがり」としていただく', ok: (s === '昼' || s === '夕') && invCount() > 0 && SPX().offerDay !== S.day }] : []),
+    ...(S.tax && !S.tax.paid ? [{ act: 'payTax', label: '税金を払う', note: `昼・夕／固定資産税 ${yen(S.tax.amount + taxLate())}${taxLate() ? '（延滞金込み）' : ''}・期限 ${dateText(S.tax.due)}`, ok: (s === '昼' || s === '夕') && S.money >= S.tax.amount + taxLate(), primary: S.day > S.tax.due }] : []),
     { act: 'autoOpen', label: 'いつもどおり過ごす', note: '朝／1日・3日・7日をまとめて進める', ok: s === '朝' && !S.tutorial },
     { act: 'facOpen', label: '設備・修繕', note: `冷蔵庫・こたつ・修繕など（${(C.facilities || []).filter(f => hasFac(f.id)).length}/${(C.facilities || []).length}）`, ok: true },
     ...bdayToday().map(h => ({ act: 'bday', id: h.id, label: `${shortName(h)}の誕生日を祝う`, note: `ケーキを持って部屋へ／${yen(C.birthday.price)}`, ok: S.money >= C.birthday.price, primary: true })),
@@ -1674,6 +1694,9 @@ function closeModal() {
   else if (kind === 'night' || kind === 'ending' || kind === 'autoDone') {
     narr(`${dateText()}（${C.weekdays[dow()]}）の朝。${isMonthEnd() ? '今日は月末。家賃の回収日だ。' : ''}`);
     HS().filter(h => h.birthday === mmdd() && S.h[h.id].met).forEach(h => narr(`今日は${h.name}の誕生日だ。`));
+    { const w = wxNow(); if (w) narr(`今日の天気：${WX[w.k]}、${w.temp}℃。${w.k === 'rain' || w.k === 'snow' ? '外に出る住人は少なそうだ。' : hotDay() ? '暑い。冷たいものが喜ばれそうだ。' : coldDay() ? '寒い。あったかいものが喜ばれそうだ。' : ''}`); }
+    (S.morningNotes || []).forEach(x => narr(x)); S.morningNotes = [];
+    { const rq = Object.entries(S.req || {}).filter(([id, r]) => r.until - S.day <= 1); if (rq.length) narr(`依頼の期限が近い：${rq.map(([id]) => shortName(H[id])).join('・')}`); }
     (C.seasons || []).filter(e => e.from === mmdd()).forEach(e => narr(`今日から${e.name}の時期だ。自室から誘える。`));
     render();
   }
@@ -1685,6 +1708,7 @@ function shopHTML() {
     <div class="grid3">${D.foods.map(f => `<div class="card3"><b>${esc(f.name)}</b><small>${f.kcal}kcal・満腹+${f.full}</small><small>${f.tags.map(t => C.tagNames[t] || t).join('/')}${f.night ? `・夜食で胃袋+${f.night}` : ''}</small>
       <span class="num">${yen(f.price)} <small>所持${S.inv[f.id] || 0}</small></span>
       <button class="mini" data-act="buy" data-id="${f.id}" ${S.money < f.price ? 'disabled' : ''}>買う</button></div>`).join('')}</div>
+    ${S.tax && !S.tax.paid && S.money >= S.tax.amount + taxLate() ? `<button class="btn" data-act="payTax" data-free="1">ついでに固定資産税を払う<small>${yen(S.tax.amount + taxLate())}</small></button>` : ''}
     <button class="btn primary close" data-act="close">${shopBought ? 'アパートに戻る' : 'やめる'}</button>`;
 }
 function giftHTML(h) {
@@ -1760,6 +1784,7 @@ function diaryHTML(h) {
   return `<h3>${esc(h.name)}の成長日記</h3>
     <div class="sub">記録 ${d.length}日分・記録を始めてから <span class="num">${gain >= 0 ? '+' : ''}${gain.toFixed(1)}kg</span>（身長 ${h.height}cm）。毎晩の体重を記録している。</div>
     <div class="row" style="margin-top:6px"><span>目標の体型</span><span><select data-chg="target" data-id="${h.id}">${['', ...Array.from({ length: 14 }, (_, i) => i + 2)].map(v => `<option value="${v}" ${String(st.target || '') === String(v) ? 'selected' : ''}>${v ? `段階${v}「${esc(stageInfo(v).name)}」` : '目標なし（上限まで）'}</option>`).join('')}</select></span></div>
+    ${pairsHTML(h)}
     ${diaryChart(h, d)}
     <div class="roster">${rows}</div>
     <div class="acts" style="margin-top:10px"><button class="btn" data-act="rosterOpen">住人一覧へ戻る</button><button class="btn close" data-act="close">閉じる</button></div>`;
@@ -1914,6 +1939,67 @@ function stageRange(h, sg) {
   const lo = sg <= 1 ? 0 : (D.stages[sg - 2] || {}).maxBmi || 0, hi = (D.stages[sg - 1] || {}).maxBmi || 99;
   const m2 = (h.height / 100) ** 2; return [lo * m2, hi * m2];
 }
+/* ---------- v1.8：天気（S1） ---------- */
+const WX = { sun: '晴れ', cloud: 'くもり', rain: '雨', snow: '雪' }, WXI = { sun: '☀', cloud: '☁', rain: '☂', snow: '❄' };
+function rollWeather() {
+  const mo = dateOf(S.day).getMonth() + 1, W = (C.weather || {})[mo]; if (!W) return;
+  let r = Math.random(), k = 'sun'; const ks = ['sun', 'cloud', 'rain', 'snow'];
+  for (let i = 0; i < 4; i++) { if (r < W.p[i]) { k = ks[i]; break; } r -= W.p[i]; }
+  const temp = Math.round(W.t[0] + Math.random() * (W.t[1] - W.t[0]) - (k === 'rain' || k === 'snow' ? 2 : 0));
+  S.wx = { day: S.day, k, temp };
+  // 雨・雪の日は、住人ごとに30%で在室の時間帯が1つ増える
+  HS().forEach(h => { const st = S.h[h.id]; st.extraSlot = null;
+    if ((k === 'rain' || k === 'snow') && Math.random() < 0.3) { const free = ['昼', '夕', '夜'].filter(s => !(h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes(s)); if (free.length) st.extraSlot = { day: S.day, slot: pick(free) }; } });
+}
+const wxNow = () => (S && S.wx && S.wx.day === S.day ? S.wx : null);
+const isRainy = () => { const w = wxNow(); return !!(w && (w.k === 'rain' || w.k === 'snow')); };
+const hotDay = () => { const w = wxNow(), mo = dateOf(S.day).getMonth() + 1; return !!(w && w.k === 'sun' && w.temp >= 30 && mo >= 7 && mo <= 9); };
+const coldDay = () => { const w = wxNow(), mo = dateOf(S.day).getMonth() + 1; return !!(w && w.temp <= 5 && (mo === 12 || mo <= 2)); };
+/* ---------- v1.8：住人同士の仲（S3） ---------- */
+const pairKey = (a, b) => [a, b].sort().join('|');
+function pairVal(a, b) {
+  const P = C.pairs, k = pairKey(a, b), ps = (S.pairs = S.pairs || {});
+  if ((H[a] && H[a].twinOf === b)) return 90;
+  if (ps[k] == null) ps[k] = P.base + (bldOf(H[a]) === bldOf(H[b]) ? P.sameBuilding : 0) + ((C.campusHeroines || []).includes(a) && (C.campusHeroines || []).includes(b) ? P.sameUni : 0) + (((H[a].pairs || {})[b]) || ((H[b].pairs || {})[a]) || 0);
+  return ps[k];
+}
+function pairAdd(a, b, d) { if (a === b || (H[a] && H[a].twinOf === b)) return; pairVal(a, b); S.pairs[pairKey(a, b)] = clamp(S.pairs[pairKey(a, b)] + d, -50, 100); }
+function pairsHTML(h) {
+  const others = HS().filter(o => o.id !== h.id && S.h[o.id].met).map(o => ({ o, v: pairVal(h.id, o.id) }));
+  const good = others.filter(x => x.v >= 40).sort((a, b) => b.v - a.v).slice(0, 3), bad = others.filter(x => x.v <= 0).sort((a, b) => a.v - b.v).slice(0, 3);
+  if (!good.length && !bad.length) return '';
+  return `<div class="sub" style="margin-top:6px">${good.length ? `仲のいい住人：${good.map(x => esc(shortName(x.o))).join('・')}` : ''}${good.length && bad.length ? '　' : ''}${bad.length ? `苦手な住人：${bad.map(x => esc(shortName(x.o))).join('・')}` : ''}</div>`;
+}
+/* ---------- v1.8：依頼（S4） ---------- */
+const reqOf = h => (S.req || {})[h.id];
+function doRequest(h, viaManage) {
+  const r = reqOf(h), R = C.requests, ty = R.types.find(x => x.id === r.type), st = S.h[h.id];
+  if (r.type === 'shop') {
+    if (!S.inv[r.food]) { narr(`（${h.name}に頼まれた「${FOOD[r.food].name}」を、まだ買っていない）`); return false; }
+    S.inv[r.food]--; if (!S.inv[r.food]) delete S.inv[r.food]; st.intake += FOOD[r.food].kcal;
+    narr(`（頼まれていた${FOOD[r.food].name}を、${h.name}に渡した）`);
+  } else narr(viaManage ? `（管理業務のついでに、${h.name}の部屋の「${ty.name}」を片づけた）` : ty.text);
+  delete S.req[h.id]; addAff(h, R.affection); S.building = clamp(S.building + R.building, 0, 100); S.reqDone = (S.reqDone || 0) + 1;
+  if (!viaManage) speak(h, 'request');
+  return true;
+}
+/* ---------- v1.8：固定資産税（S13） ---------- */
+function taxNotices() {
+  const T = C.propertyTax, d = dateOf(S.day), mo = d.getMonth() + 1, out = [];
+  if (!T) return out;
+  if (d.getDate() === 1 && T.months.includes(mo) && !(S.tax && S.tax.period === S.day)) {
+    const amt = T.apartment + (S.mansionBuilt ? T.mansion : 0), end = new Date(d.getFullYear(), mo, 0).getDate();
+    S.tax = { period: S.day, amount: amt, due: S.day + end - 1, paid: false, warned: false, seen: false };
+    out.push(`郵便受けに、固定資産税・都市計画税の納付書が届いていた（${yen(amt)}、今月末まで）。自室から払える。`);
+  }
+  const tx = S.tax;
+  if (tx && !tx.paid && S.day > tx.due + 30 && !tx.seen) { tx.seen = true; const hh = HS().filter(h => S.h[h.id].met).sort((a, b) => S.h[b.id].aff - S.h[a.id].aff)[0]; if (hh) S.taxSeenBy = hh.id; }
+  if (tx && !tx.paid && S.day > tx.due) {
+    if (!tx.warned && S.day >= tx.due + 10) { tx.warned = true; out.push(`督促状が届いた。「納期限を過ぎております。延滞金 ${yen(taxLate())} を加算のうえ、すみやかに納付してください」`); (S.taxLateYear = S.taxLateYear || []).push(yearOf()); }
+  }
+  return out;
+}
+const taxLate = () => { const tx = S.tax; if (!tx || S.day <= tx.due) return 0; return Math.round(tx.amount * C.propertyTax.lateRate * (S.day - tx.due) / 365 / 100) * 100; };
 /* ---------- v1.8：デカ盛りチャレンジ（E8） ---------- */
 function challengeGo(h) {
   const st = S.h[h.id], CH = C.challenge, tier = Math.min(st.chal || 0, CH.menus.length - 1), m = CH.menus[tier];
@@ -1963,6 +2049,8 @@ function autoStops(snap) {
   if (HS().some(h => { const st = S.h[h.id], b = snap[h.id] || {}; return st.met && (st.stage > (b.stage || 0) || (st.pend || []).length > (b.pend || 0)); })) r.push('体型の変化・節目');
   if (S.money < ((C.autoPlan || {}).stopMoney || 3000)) r.push('お金が少ない');
   if (S.pendingEnding) r.push('年度の終わり');
+  if ((S.morningNotes || []).length) r.push('税金の知らせ');
+  if (Object.values(S.req || {}).some(q => q.until - S.day <= 1)) r.push('依頼の期限が明日');
   if (S.autoBreak && S.autoBreak.length) { r.push(...S.autoBreak); S.autoBreak = []; }   // 夜の集計で積まれた「止まる理由」
   window.AUTO_STOPS.forEach(f => { const x = f(); if (x) r.push(x); });
   return r;
@@ -2047,6 +2135,12 @@ const ACT = {
   menu() { openModal('menu', menuHTML()); },
   rosterOpen() { openModal('roster', rosterHTML()); },
   settingsOpen() { openModal('settings', settingsHTML()); },
+  payTax(d) {
+    const tx = S.tax, amt = tx.amount + taxLate(); if (!tx || tx.paid || S.money < amt) return;
+    S.money -= amt; tx.paid = true; (S.taxPaid = S.taxPaid || []).push({ day: S.day, amount: amt, late: S.day > tx.due });
+    narr(`コンビニで固定資産税を払った（${yen(amt)}${amt > tx.amount ? '・延滞金込み' : ''}）。`);
+    if (!(d && d.free)) advanceSlot(); else { closeModal(); openModal('shop', shopHTML()); render(); }
+  },
   careOpen() {
     const h = room();
     openModal('care', `<h3>${esc(h.name)}を看病する</h3><div class="sub">所持金 ${yen(S.money)}</div><div class="grid3">${C.sick.menu.map(m => `<button class="card3" data-act="care" data-id="${m.id}" ${S.money >= m.price ? '' : 'disabled'}><b>${esc(m.name)}</b><small>${m.kcal}kcal</small><span class="num">${yen(m.price)}</span></button>`).join('')}</div><button class="btn close" data-act="close">やめる</button>`);
@@ -2105,7 +2199,13 @@ const ACT = {
     const kcal = Math.round((P.kcal + S.cook * P.cookBonus) * (hasFac('cooker') ? 1.2 : 1));
     withCast(hs.map(h => h.id), () => {
     narr(`（${hs.map(h => h.name).join('、')}が集まった）`);
-    hs.forEach(h => { const st = S.h[h.id]; speak(h, 'party'); st.intake += kcal; st.ate = true; st.habit = clamp(st.habit + P.habit, 0, 1); addAff(h, P.affection + (hasFac('kotatsu') ? 2 : 0)); });
+    // 険悪な2人がいると、30%でケンカ（S3）
+    const bad = []; hs.forEach((a, i) => hs.slice(i + 1).forEach(b => { if (pairVal(a.id, b.id) <= C.pairs.enemy) bad.push([a, b]); }));
+    const fight = bad.length && Math.random() < C.pairs.quarrel ? bad[0] : null;
+    hs.forEach(h => { const st = S.h[h.id]; speak(h, 'party'); st.intake += kcal; st.ate = true; st.habit = clamp(st.habit + P.habit, 0, 1);
+      if (!(fight && fight.includes(h))) addAff(h, P.affection + (hasFac('kotatsu') ? 2 : 0) + (coldDay() ? 1 : 0)); });
+    hs.forEach((a, i) => hs.slice(i + 1).forEach(b => pairAdd(a.id, b.id, 3)));
+    if (fight) { const [a, b] = fight; sayOther(a, 'quarrel', b); sayOther(b, 'quarrel', a); narr(`（あなたが間に入って、なんとかその場を収めた。${shortName(a)}と${shortName(b)}は、気まずそうに鍋をつついている）`); pairAdd(a.id, b.id, 10); }
     if (hs.length >= 2) {
       const [a, b] = hs.slice().sort(() => Math.random() - 0.5);
       sayOther(a, 'partyAbout', b);
@@ -2286,6 +2386,7 @@ const ACT = {
       narr(`${h.room}号室。…留守のようだ。` + (canVisit(st) ? (h.id === 'rin' ? '（交代制勤務。日によって在室の時間が変わる）' : `（在室しやすい時間：${schedText(h)}）`) : '')); return;
     }
     if (S.packages[h.id]) { deliver(h); return; }
+    if (reqOf(h) && canVisit(st)) { sceneBg('hall'); narr(`${h.name}の依頼（${C.requests.types.find(x => x.id === reqOf(h).type).name}）に対応した。`); if (doRequest(h, false)) { advanceSlot(); return; } }
     if (isMonthEnd() && !S.rentDone[h.id]) { collectRent(h); return; }
     if (st.sick) {   // E3 風邪：親密度に関係なく看病できる
       S.view = { type: 'room', id: h.id }; narr(`（ドアに「風邪です」の貼り紙。${h.name}は、布団で寝込んでいた）`);
@@ -2310,6 +2411,7 @@ const ACT = {
         if (st.stage >= 10 && !fl.includes('floor_e10')) { fl.push('floor_e10'); if (tryScene(h, 'floor')) { S.floorCount = (S.floorCount || 0) + 1; return true; } }
       }
       if (st.recoverNew) { st.recoverNew = false; if (tryScene(h, 'recover')) return true; }
+      if (S.taxSeenBy === h.id) { S.taxSeenBy = null; if (!tryScene(h, 'taxNotice')) speak(h, 'taxNotice'); return true; }
       // E10 昔の服が入らない
       for (const [sg, ty] of [[13, 'oldClothes3'], [9, 'oldClothes2'], [5, 'oldClothes1']]) {
         const f = 'oc_' + sg; if (st.stage >= sg && !flagsOf(h).includes(f)) { flagsOf(h).push(f); S.ctxGain = Math.round(st.weight - h.weight); if (tryScene(h, ty)) return true; break; }
@@ -2362,7 +2464,7 @@ const ACT = {
       if (!(Math.random() < (C.visitSceneChance || 0) && tryScene(h, 'visit'))) speak(h, 'greet');
     }
     // 攻略した人が2人以上いると、ときどきやきもち
-    if (st.captured && Math.random() < ((C.relations || {}).jealousChance || 0)) { const o = HS().filter(x => x.id !== h.id && S.h[x.id].captured); if (o.length) sayOther(h, 'jealous', pick(o)); }
+    if (st.captured && Math.random() < ((C.relations || {}).jealousChance || 0)) { const o = HS().filter(x => x.id !== h.id && S.h[x.id].captured); if (o.length) { const x = pick(o); sayOther(h, 'jealous', x); pairAdd(h.id, x.id, -3); } }
     render();
   },
   talk() {
@@ -2403,6 +2505,7 @@ const ACT = {
     if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
     // 深夜の差し入れ（夜食）は、物によって胃袋（満腹ゲージの上限）が少し広がる
     if (slotName() === '深夜' && f.night && st.cap < C.maxCapacity) { st.cap = Math.min(C.maxCapacity, st.cap + f.night); narr(`（深夜の${f.name}。…胃袋が少し広がった気がする。満腹の上限 +${f.night}）`); }
+    if ((hotDay() && f.tags.includes('cold')) || (coldDay() && f.tags.includes('hot'))) { addAff(h, 2); speak(h, hotDay() ? 'hotDay' : 'coldDay'); }
     if (h.id === 'karen' && karenCheat(st)) narr('（今日はチートデイ。差し入れはいつもの倍、おいしく食べてもらえる）');
     if (h.id === 'aoi' && st.yake === S.day) narr('（やけ食いの勢いで、いつもより多く食べている）');
     // 双子のおすそわけ（もう1人が部屋にいるとき）
@@ -2502,7 +2605,9 @@ const ACT = {
     S.building = clamp(S.building + C.manageGain, 0, 100);
     if (slotName() === '朝') { narr('敷地と玄関まわりを掃除した。'); morningGreet('morning'); advanceSlot(); return; }
     if (slotName() === '夕') { narr('夕暮れの敷地を掃き、玄関の明かりをつけた。'); morningGreet('evening'); advanceSlot(); return; }
-    narr(pick(['廊下と階段を掃除した。', '雨どいの詰まりを直した。', 'きしむ床板を補修した。'])); advanceSlot();
+    narr(pick(['廊下と階段を掃除した。', '雨どいの詰まりを直した。', 'きしむ床板を補修した。']));
+    { const r = Object.keys(S.req || {}).find(id => S.req[id].type !== 'shop'); if (r) doRequest(H[r], true); }
+    advanceSlot();
   },
   shop() { shopBought = false; openModal('shop', shopHTML()); },
   buy(d) {

@@ -252,10 +252,30 @@ window.GAME_DATA = {
       { id: 'choco', name: '高級チョコの詰め合わせ', price: 3000, kcal: 1200, aff: 4, habit: 0 },
       { id: 'triple', name: '「3倍返し」（チョコ・マカロン・ケーキの山）', price: 6000, kcal: 3600, aff: 6, habit: 0.03 }
     ],
+    // S1 天気：月ごとの [晴れ, くもり, 雨, 雪] の確率と、気温の [最低, 最高]
+    weather: {
+      1: { p: [0.55, 0.25, 0.1, 0.1], t: [0, 10] },  2: { p: [0.5, 0.25, 0.13, 0.12], t: [1, 11] }, 3: { p: [0.45, 0.3, 0.22, 0.03], t: [5, 15] },
+      4: { p: [0.45, 0.3, 0.25, 0], t: [10, 20] }, 5: { p: [0.5, 0.25, 0.25, 0], t: [15, 25] }, 6: { p: [0.25, 0.3, 0.45, 0], t: [19, 27] },
+      7: { p: [0.5, 0.25, 0.25, 0], t: [24, 33] }, 8: { p: [0.6, 0.2, 0.2, 0], t: [25, 35] }, 9: { p: [0.4, 0.3, 0.3, 0], t: [21, 31] },
+      10: { p: [0.45, 0.3, 0.25, 0], t: [15, 23] }, 11: { p: [0.55, 0.3, 0.15, 0], t: [9, 18] }, 12: { p: [0.6, 0.25, 0.1, 0.05], t: [3, 12] }
+    },
+    // S3 住人同士の仲（−50〜100）
+    pairs: { base: 20, sameBuilding: 10, sameUni: 10, friend: 60, enemy: -20, eatTogether: 0.08, quarrel: 0.3 },
+    // S4 住人からの依頼
+    requests: { chance: 0.06, affection: 4, building: 2, types: [
+      { id: 'bulb',  name: '電球の交換',     text: '（脚立に乗って、切れた電球を新しいものに替えた）' },
+      { id: 'leak',  name: '水漏れ',         text: '（流しの下にもぐって、パッキンを締め直した。水漏れは止まった）' },
+      { id: 'carry', name: '重い荷物運び',   text: '（届いたばかりの大きな段ボールを、部屋の奥まで運んだ）' },
+      { id: 'bug',   name: '虫退治',         text: '（新聞紙を丸めて、部屋の隅の虫を退治した。悲鳴が上がった）' },
+      { id: 'shelf', name: '棚の組み立て',   text: '（説明書とにらめっこしながら、組み立て式の棚を完成させた）' },
+      { id: 'shop',  name: '買い物の代行',   text: '（頼まれていた物を渡した）' }
+    ] },
+    // S13 固定資産税・都市計画税（東京23区の納期：6・9・12・2月、各期の月末まで）。延滞金は年率（日割り）
+    propertyTax: { months: [6, 9, 12, 2], apartment: 60000, mansion: 450000, lateRate: 0.087 },
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
-    tagNames: { sweet: '甘いもの', snack: 'スナック', fried: '揚げ物', meal: 'ごはん', alcohol: 'お酒' },
+    tagNames: { sweet: '甘いもの', snack: 'スナック', fried: '揚げ物', meal: 'ごはん', alcohol: 'お酒', cold: '冷たいもの', hot: 'あったかいもの' },
 
     // 体型タイプ（体型タイプ仕様 v0.2）。visualLag は仮シルエットの見た目だけを遅らせる
     bodyTypes: {
@@ -303,29 +323,29 @@ window.GAME_DATA = {
 
   /* ---- 差し入れ用の食べ物 ---- */
   foods: [
-    { id: 'pudding',   name: 'コンビニプリン',   price: 180, kcal: 250,  full: 8,  tags: ['sweet'] },
+    { id: 'pudding',   name: 'コンビニプリン',   price: 180, kcal: 250,  full: 8,  tags: ['sweet', 'cold'] },
     { id: 'creampuff', name: 'シュークリーム',   price: 150, kcal: 230,  full: 7,  tags: ['sweet'] },
-    { id: 'cake',      name: 'ショートケーキ',   price: 450, kcal: 380,  full: 12, tags: ['sweet'] },
+    { id: 'cake',      name: 'ショートケーキ',   price: 450, kcal: 380,  full: 12, tags: ['sweet', 'cold'] },
     { id: 'donuts',    name: 'ドーナツ6個入り',  price: 780, kcal: 1400, full: 28, tags: ['sweet'] },
     { id: 'chips',     name: 'ポテトチップス',   price: 160, kcal: 550,  full: 14, tags: ['snack'] },
-    { id: 'nikuman',   name: '肉まん',           price: 150, kcal: 250,  full: 10, tags: ['meal'] },
+    { id: 'nikuman',   name: '肉まん',           price: 150, kcal: 250,  full: 10, tags: ['meal', 'hot'] },
     { id: 'karaage',   name: 'からあげ弁当',     price: 550, kcal: 900,  full: 30, tags: ['fried', 'meal'] },
     { id: 'beerset',   name: 'ビールとつまみ',   price: 600, kcal: 700,  full: 16, tags: ['alcohol', 'fried'], night: 1 },
     // v1.7 追加。night＝深夜に差し入れると、満腹ゲージの上限がこの分だけ広がる（夜食は胃袋を育てる）
-    { id: 'cupramen',  name: 'カップラーメン',       price: 220,  kcal: 450,  full: 14, tags: ['meal', 'snack'], night: 1 },
+    { id: 'cupramen',  name: 'カップラーメン',       price: 220,  kcal: 450,  full: 14, tags: ['meal', 'snack', 'hot'], night: 1 },
     { id: 'famichiki', name: 'ホットスナックのチキン', price: 230, kcal: 300,  full: 8,  tags: ['fried', 'snack'] },
     { id: 'daifuku',   name: '豆大福',               price: 160,  kcal: 250,  full: 8,  tags: ['sweet'] },
     { id: 'potatol',   name: 'フライドポテトL',      price: 400,  kcal: 520,  full: 14, tags: ['fried', 'snack'], night: 1 },
     { id: 'pan5',      name: '菓子パン5個',          price: 650,  kcal: 1600, full: 30, tags: ['sweet'] },
-    { id: 'katsudon',  name: 'カツ丼',               price: 700,  kcal: 1100, full: 32, tags: ['fried', 'meal'], night: 1 },
-    { id: 'gyudon',    name: '特盛り牛丼',           price: 900,  kcal: 1300, full: 36, tags: ['meal'], night: 2 },
+    { id: 'katsudon',  name: 'カツ丼',               price: 700,  kcal: 1100, full: 32, tags: ['fried', 'meal', 'hot'], night: 1 },
+    { id: 'gyudon',    name: '特盛り牛丼',           price: 900,  kcal: 1300, full: 36, tags: ['meal', 'hot'], night: 2 },
     { id: 'burger',    name: '特大ハンバーガーセット', price: 1100, kcal: 1500, full: 38, tags: ['fried', 'meal'], night: 2 },
-    { id: 'icefamily', name: 'アイスのファミリーパック', price: 900, kcal: 1400, full: 26, tags: ['sweet'], night: 1 },
-    { id: 'ramenbig',  name: '背脂ラーメン（持ち帰り）', price: 1200, kcal: 1700, full: 42, tags: ['meal'], night: 3 },
-    { id: 'sake',      name: '日本酒の一升瓶とおでん', price: 2400, kcal: 1900, full: 30, tags: ['alcohol'], night: 1 },
-    { id: 'bucketpud', name: 'バケツプリン',         price: 1600, kcal: 2400, full: 40, tags: ['sweet'], night: 2 },
+    { id: 'icefamily', name: 'アイスのファミリーパック', price: 900, kcal: 1400, full: 26, tags: ['sweet', 'cold'], night: 1 },
+    { id: 'ramenbig',  name: '背脂ラーメン（持ち帰り）', price: 1200, kcal: 1700, full: 42, tags: ['meal', 'hot'], night: 3 },
+    { id: 'sake',      name: '日本酒の一升瓶とおでん', price: 2400, kcal: 1900, full: 30, tags: ['alcohol', 'hot'], night: 1 },
+    { id: 'bucketpud', name: 'バケツプリン',         price: 1600, kcal: 2400, full: 40, tags: ['sweet', 'cold'], night: 2 },
     { id: 'pizzal',    name: 'ピザLサイズ',          price: 2800, kcal: 2700, full: 55, tags: ['fried', 'meal'], night: 3 },
-    { id: 'wholecheese', name: 'チーズケーキ1ホール', price: 2200, kcal: 3000, full: 50, tags: ['sweet'], night: 2 },
+    { id: 'wholecheese', name: 'チーズケーキ1ホール', price: 2200, kcal: 3000, full: 50, tags: ['sweet', 'cold'], night: 2 },
     { id: 'friedbucket', name: 'フライドチキンのバケツ', price: 3200, kcal: 3600, full: 65, tags: ['fried', 'meal'], night: 3 }
   ],
 
@@ -548,6 +568,10 @@ window.GAME_DATA = {
     keepOn: ['…この体のままで、いいの？ ふふ、わかった'],
     challengeWin: ['…食べきっちゃった。写真、撮られちゃった…', 'まだいけるけど？ …次のメニュー、気になる'],
     challengeLose: ['…ギブ。もう一口も入らない…', 'くやしい…次は、ぜったい食べきる'],
+    request: ['助かったぁ…ありがとう', 'さすが管理人さん。頼りになる'],
+    quarrel: ['…ちょっと、{other}。今の、どういう意味？', '{other}には言われたくないんだけど'],
+    taxNotice: ['…ねえ、これ。机の上に「督促状」って書いてあったけど。大丈夫？'],
+    hotDay: ['冷たいの、最高…！ 生き返る'], coldDay: ['あったかいの、しみる…'],
     whiteday: ['お返し、ちゃんと覚えててくれたんだ', '…ありがとう。大事に食べる。…すぐ食べちゃうけど'],
     orderOk: ['ちゃんと持ってきたじゃん。…ほめてあげる'],
     focusGift: ['そこに置いといて。今、手が離せないの'],
