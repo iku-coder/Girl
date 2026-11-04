@@ -10,7 +10,7 @@ window.GAME_DATA = {
     apartmentName: 'ひだまり荘',
     bgDir: 'img/bg',            // 背景絵のフォルダ（img/bg/<場所>_<時間帯>.png）
     defaultPlayerName: '悠',     // 主人公の名前の初期値（はじめるときに変えられる）。セリフの「〇〇」に入る
-    version: '試作版 v2.0',
+    version: '試作版 v2.1',
     slots: ['朝', '昼', '夕', '夜', '深夜'],   // v1.7 深夜を追加：深夜になると自室へ戻り、寝るか料理をするとその日の集計へ
     weekdays: ['月', '火', '水', '木', '金', '土', '日'],
     startDate: '2026-04-01',    // ゲーム開始日（新学期）。曜日と月末はここから計算する
@@ -81,10 +81,10 @@ window.GAME_DATA = {
     waryGiftRefuse: 60,         // これ以上だと差し入れを断る
     waryVisitRefuse: 80,        // これ以上だと部屋に入れてくれない
 
-    // ---- マンション（ヒロインを5人攻略 → 祖父の通帳 → 隣の敷地に建設。建設期間なし） ----
+    // ---- マンション（ひだまり荘のヒロイン3人の親密度が50 → 祖父の通帳 → 隣の敷地に建設。建設期間なし） ----
     mansion: {
       name: 'ひだまりレジデンス',   // 仮の名前
-      unlockCaptured: 5,          // 攻略人数がこれに届くと、祖父の通帳イベント
+      unlock: { count: 3, affection: 50 },   // ひだまり荘のヒロインのうち3人の親密度が50に届くと、祖父の通帳イベント（v2.1）
       floors: 3, roomsPerFloor: 4, // 3階建て12室（部屋番号 101〜304）
       rentPerMonth: 120000,       // マンションの家賃（貧乏設定のない住人向け）
       fundsLeft: 0                // 3億円のうち建設後に手元に残す額（0＝全額建設に使う）
@@ -176,7 +176,10 @@ window.GAME_DATA = {
       { id: 'cooker',  name: '業務用の炊飯器',               price: 15000, desc: '手料理と食事会のカロリー +20%' },
       { id: 'fridge',  name: '大きな冷蔵庫',                 price: 30000, desc: '作り置きが1回で+2食分' },
       { id: 'bbq',     name: '中庭のベンチとバーベキューコンロ', price: 40000, desc: '食事会に呼べる人数が3人→5人' },
-      { id: 'repair',  name: '外壁と屋根の修繕',             price: 80000, desc: '建物の傷み方が半分になる' }
+      { id: 'repair',  name: '外壁と屋根の修繕',             price: 80000, desc: '建物の傷み方が半分になる' },
+      { id: 'snackbox', name: '玄関のお菓子箱',               price: 3000,  desc: '「ご自由にどうぞ」。毎晩、夕・夜に在室した住人がつまむ（買い出しで補充）' },
+      { id: 'snackbox2', name: 'ロビーのお菓子箱',            price: 3000,  desc: 'ひだまりレジデンスのロビーにも置く', needMansion: true },
+      { id: 'vending', name: 'アパート前の自販機',             price: 20000, desc: 'ひだまり荘の住人の間食 +200kcal／日' }
     ],
     // ダイエット宣言：段階4以上で、ときどき言い出す。期間中は差し入れ・外食・手料理を断り、自分で食べる量も減る。
     // 説得に成功（シーンの選択肢で setFlag 'diet_stop'）すれば即終了。最後までやると、そのあと数日リバウンド
@@ -300,10 +303,68 @@ window.GAME_DATA = {
       { id: 'sento',     name: '銭湯',       note: '夕・夜（休日は朝も）', slots: ['夕', '夜'], weekendMorning: true },
       { id: 'shrine',    name: '陽守神社',   note: '昼・夕・お供え', slots: ['昼', '夕'] }
     ],
+    // 攻略ペース（v2.1・攻略ペース調整 仕様案）：段階7〜8で攻略になるよう、親密度の増え方を抑える。減る分には掛けない
+    affGainRate: 0.4,                         // すべての増加に掛ける
+    affTierRate: [1.0, 0.8, 0.6, 0.4],        // よそよそしい・顔なじみ・好意・特別
+    affDailyCap: [3, 2.5, 2, 1],              // ヒロインごとの1日の増加の上限（段階別）
+    affCapBonus: 3,                           // 行事・誕生日・ホワイトデー・看病・一度きりの身の上話がある日は上限+3
+    affDecay: { days: 3, amount: 1, minTier: 1 },   // 3日続けて会わないと、4日目から毎晩−1（段階の下端より下げない・攻略済みは下がらない）。minTier 1＝よそよそしい段階では下げない（住人19人だと会う機会が足りず、0から抜け出せないため）
+    startAffection: { rate: 0.25, max: 10, override: { aoi: 35 } },   // 初期の親密度＝今の値×0.25（最大10）。葵だけ35
+    // 身体の変化（v2.1・身体の変化 仕様案）。段階のグループ 1〜4／5〜8／9〜12／13〜15 を 0〜3 で表す。文は短く、生々しくしない
+    body: {
+      items: [
+        { id: 'smell',  label: '体臭', minTier: 0,
+          text: ['', '汗をかきやすくなった。夏は汗の匂いが少しする', '{where}が蒸れて、汗の匂いが残りやすい。シャワーの回数が増えた', '少し動くだけで汗ばむ。本人の匂いが部屋に残っている'],
+          notice: ['', '（そばに寄ると、ほんのり汗の匂いがした）', '（部屋に、汗と柔軟剤の混ざった匂いがこもっている）', '（ドアを開けた瞬間、{name}の匂いがふわっと広がった）'] },
+        { id: 'breath', label: '口臭', minTier: 1,
+          text: ['', '食後に、食べた物の匂いが残る', '寝起きの口の匂いを気にしている。いびきをかきはじめたらしい', '口呼吸といびきが増えた。ガムやミントが手放せない'],
+          notice: ['', '（話していると、さっき食べたらしい物の匂いがした）', '（あくびのたびに、口元を手で隠すようになった）', '（テーブルの上に、ミントタブレットのケースが3つ並んでいる）'] },
+        { id: 'hair',   label: '体毛', minTier: 1, thinTier1: true,
+          text: ['', 'うぶ毛が少し目立つ。ムダ毛の処理の範囲が広がって面倒そう', 'お腹や背中など、手の届きにくい所の処理が追いつかない', '処理をあきらめた所がある'],
+          notice: ['', '（半袖の腕に、うぶ毛が光っている）', '（洗面所に、柄の長いカミソリが増えていた）', '（「もう見えない所はいいや」と、本人は笑っている）'] },
+        { id: 'stretch', label: '肉割れ', minTier: 2, thinTier1: true, lateHidden: true,
+          text: ['', '急に太った時期の、赤紫の細い線が{where}に出ている', '{where}の線が増えて長くなった。古いものは白っぽい', '{where}に、線が広く重なって残っている'],
+          notice: ['', '（服の隙間から、{where}に細い赤紫の線がちらりと見えた）', '（{where}の線が、前より増えている）', '（{where}一面に、白と赤紫の線が重なっている）'],
+          fresh: '最近また急に増えたので、{where}に新しい赤紫の線が出ている', faded: '古い線は白っぽくなってきた' },
+        { id: 'dark',   label: '擦れ・黒ずみ', minTier: 2, thinTier1: true, lateHidden: true,
+          text: ['', '内ももが擦れはじめ、夏は赤くなる', '{where}が擦れて黒ずんできた。擦れ防止のスパッツや粉を使っている', '首の後ろ・脇・{where}が黒ずんでいる。服で隠している'],
+          notice: ['', '（歩くたびに、内ももがこすれる音がする）', '（脱衣かごに、擦れ防止のスパッツが何枚も干してある）', '（首の後ろの黒ずみを、髪で隠すようになった）'] },
+        { id: 'toilet', label: 'トイレ', minTier: 2,
+          text: ['', '食べる量が増えて、トイレの回数も増えた', 'トイレが長くなった。食べすぎた翌日はおなかを下しがち', '1日に何度もトイレに行く。トイレットペーパーの減りが早い'],
+          notice: ['', '（「ちょっとごめん」と、話の途中でトイレに立った）', '（訪ねると、ちょうどトイレから出てきたところだった）', '（玄関に、12ロールのトイレットペーパーが2パック積んである）'],
+          upset: '昨日食べすぎて、今日はおなかを下しているらしい' }
+      ],
+      where: {
+        smell:   { apple: 'お腹と胸の下', pear: '内もも', hidden: '肉の重なる所' },
+        stretch: { apple: 'お腹・脇腹・胸の横', pear: '太もも・お尻・腰', hidden: '二の腕・太もも' },
+        dark:    { apple: '脇・お腹の下のくぼみ', pear: '内もも・お尻の下', hidden: '内もも' }
+      },
+      breathTags: { fried: '揚げ物', alcohol: 'お酒', garlic: 'ニンニク' },   // 前の日に食べた物で、口臭の文が変わる
+      summer: [6, 7, 8, 9], winter: [12, 1, 2], thin: [5, 6, 7, 8, 9],          // 体臭は夏(と暑い日)に1段強く、冬は1段弱い。thin＝薄着の季節
+      freshGain: 5, freshDays: 30,                                             // 30日で+5kg以上なら新しい肉割れ
+      upsetRatio: 2,                                                           // 維持カロリーの2倍を超えて食べた翌日は、おなかを下す
+      attitude: { 1: '本人は「ちょっと汗っかきなだけ」と、気づいていないふりをしている', 2: '本人はかなり気にしていて、会う前にシャワーを浴びたり、近づかれるのを嫌がったりする', 3: '本人はもう気にしていない。冗談にして笑っている' },
+      hide: '親しくない相手には隠そうとしている（デオドラントを増やす、長袖を着る など）',
+      careItems: ['care_cream', 'care_deo', 'care_spats', 'care_mint']
+    },
+    doorGift: { maxAff: 35, like: 1, normal: 0, dislike: -1, wary: 3, waryRepeat: 6, refuseWary: 60, askChance: 0.3 },   // F1 ドアノブの差し入れ
+    snackBox: { refill: [{ price: 2000, kcal: 3000 }, { price: 4000, kcal: 6500 }], eat: [300, 800], eatRate: [0.6, 1.0, 1.2, 1.5, 1.8, 2.0], habit: 0.005 },   // F2 お菓子箱
+    oburumai: { price: 5000, kcal: 1200, kcalNabe: 1800, habit: 0.02, affection: 1, maxWary: 80,                       // F3 大家のおふるまい（月1回・休日の夕）
+      menus: { 4: '花見弁当', 5: '焼きそば', 6: '流しそうめん', 7: 'かき氷とたこ焼き', 8: 'スイカ割りとバーベキュー', 9: '芋煮', 10: '焼き芋', 11: 'おでん', 12: '年越しそば', 1: 'お雑煮と餅', 2: '豚汁', 3: 'ちらし寿司' } },
+    handGift: { lowAff: 35, rate: 0.5, rateLike: 0.8, affection: 1, wary: 2, waryNo: 4 },   // F4 朝の挨拶・荷物・家賃での手渡し
+    vending: { kcal: 200 },                                                                  // F5 アパート前の自販機（ひだまり荘の住人の間食）
+    townShops: [                                                                             // F5 街の新しい店（決まった日に開店）
+      { id: 'bakery',  from: '04-25', name: '駅前のパン屋',             note: '朝はパン、という住人が増えた。', own: 0.05 },
+      { id: 'dekamori', from: '06-01', name: '商店街のデカ盛り食堂',      note: '外食に「デカ盛り食堂」が加わった。' },
+      { id: 'sweets',  from: '07-15', name: 'コンビニの新作スイーツ',     note: '甘いもの好きの住人が、毎日のように買っているらしい。', snack: 150, tag: 'sweet' },
+      { id: 'karaage', from: '09-01', name: '唐揚げ専門店',               note: '揚げ物好きの住人の夕食が、唐揚げ続きになった。', own: 0.05, tag: 'fried' },
+      { id: 'yakiimo', from: '11-01', name: '焼き芋の屋台',               note: '寒いあいだ、毎日ひだまり荘の前を通るようになった。', snack: 100, months: [11, 12, 1, 2] }
+    ],
+    jobLeftovers: { foods: ['mk_hamburg', 'mk_doria', 'mk_potato', 'mk_pancake', 'mk_grill'] },   // F5 バイトのまかない持ち帰り（夕）
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
-    tagNames: { sweet: '甘いもの', snack: 'スナック', fried: '揚げ物', meal: 'ごはん', alcohol: 'お酒', cold: '冷たいもの', hot: 'あったかいもの' },
+    tagNames: { care: 'ケア用品', sweet: '甘いもの', snack: 'スナック', fried: '揚げ物', meal: 'ごはん', alcohol: 'お酒', cold: '冷たいもの', hot: 'あったかいもの' },
 
     // 体型タイプ（体型タイプ仕様 v0.2）。visualLag は仮シルエットの見た目だけを遅らせる
     bodyTypes: {
@@ -357,6 +418,17 @@ window.GAME_DATA = {
     { id: 'donuts',    name: 'ドーナツ6個入り',  price: 780, kcal: 1400, full: 28, tags: ['sweet'], shops: ['shotengai', 'depa'] },
     { id: 'chips',     name: 'ポテトチップス',   price: 160, kcal: 550,  full: 14, tags: ['snack'], shops: ['conveni', 'super'] },
     { id: 'nikuman',   name: '肉まん',           price: 150, kcal: 250,  full: 10, tags: ['meal', 'hot'], shops: ['conveni', 'shotengai'] },
+    // ケア用品（v2.1・身体の変化）。カロリー0。好意以上で渡すと親密度+2（恥じらい期は+3）。効果は文章だけ
+    { id: 'care_cream', name: '保湿クリーム',         price: 1200, kcal: 0, full: 0, tags: ['care'], care: 'stretch', shops: ['conveni', 'depa'] },
+    { id: 'care_deo',   name: 'デオドラント',         price: 800,  kcal: 0, full: 0, tags: ['care'], care: 'smell', shops: ['conveni', 'depa'] },
+    { id: 'care_spats', name: '擦れ防止のスパッツ',   price: 1500, kcal: 0, full: 0, tags: ['care'], care: 'dark', shops: ['depa', 'shotengai'] },
+    { id: 'care_mint',  name: 'ミントタブレット',     price: 800,  kcal: 0, full: 0, tags: ['care'], care: 'breath', shops: ['conveni'] },
+    // バイトのまかない持ち帰り（v2.1・F5）。店では買えない。夕のバイトのあとにもらえる
+    { id: 'mk_hamburg', name: 'ハンバーグの残り',     price: 0, kcal: 800, full: 22, tags: ['meal'], shops: [], leftover: true },
+    { id: 'mk_doria',   name: 'ドリアの余り',         price: 0, kcal: 700, full: 20, tags: ['meal', 'hot'], shops: [], leftover: true },
+    { id: 'mk_potato',  name: 'フライドポテト山盛り', price: 0, kcal: 550, full: 16, tags: ['fried', 'snack'], shops: [], leftover: true },
+    { id: 'mk_pancake', name: 'パンケーキの切れ端',   price: 0, kcal: 600, full: 16, tags: ['sweet'], shops: [], leftover: true },
+    { id: 'mk_grill',   name: 'ミックスグリルの余り', price: 0, kcal: 900, full: 26, tags: ['meal', 'fried'], shops: [], leftover: true },
     { id: 'karaage',   name: 'からあげ弁当',     price: 550, kcal: 900,  full: 30, tags: ['fried', 'meal'], shops: ['super', 'shotengai'] },
     { id: 'beerset',   name: 'ビールとつまみ',   price: 600, kcal: 700,  full: 16, tags: ['alcohol', 'fried'], night: 1, shops: ['conveni', 'super'] },
     // v1.7 追加。night＝深夜に差し入れると、満腹ゲージの上限がこの分だけ広がる（夜食は胃袋を育てる）
@@ -392,7 +464,7 @@ window.GAME_DATA = {
     { id: 'izakaya',  name: '居酒屋',           price: 3500,  kcal: 1600, full: 46, affection: 6,  habit: 0.03, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'alcohol' },
     { id: 'cakebuf',  name: 'ケーキバイキング', price: 3200,  kcal: 2300, full: 52, affection: 6,  habit: 0.05, slots: ['昼', '夕'],       bg: 'famires',  likeTag: 'sweet' },
     { id: 'yakiniku', name: '焼肉食べ放題',     price: 4500,  kcal: 2600, full: 66, affection: 7,  habit: 0.05, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'fried' },
-    { id: 'dekamori', name: 'デカ盛り食堂（挑戦）', price: 0, kcal: 0, full: 0, affection: 5, habit: 0.05, slots: ['昼', '夕'], bg: 'teishoku', likeTag: 'meal', challenge: true },
+    { id: 'dekamori', needShop: 'dekamori', name: 'デカ盛り食堂（挑戦）', price: 0, kcal: 0, full: 0, affection: 5, habit: 0.05, slots: ['昼', '夕'], bg: 'teishoku', likeTag: 'meal', challenge: true },
     { id: 'french',   name: 'フレンチのコース', price: 12000, kcal: 1500, full: 40, affection: 10, habit: 0.02, slots: ['夜'],             bg: 'teishoku', likeTag: 'sweet' }
   ],
 
@@ -637,6 +709,14 @@ window.GAME_DATA = {
         ] } } }
   ],
   commonLines: {
+    // v2.1：身体の変化・ケア用品（キャラ固有は heroines[].lines で上書き）
+    careGift: [['あ…ありがとうございます。…そんなに、気になりました？'], ['え、これ…ありがと。…私、匂う？'], ['…気づいてたんだ。ありがとう。こっそり使うね'], ['ありがと。…ねえ、今度塗ってくれる？ 背中、届かないの']],
+    careGiftShy: ['…っ、見ないでって言ったのに。…でも、ありがと。すごく助かる', 'こういうの、自分で買うの恥ずかしくて。…ありがとう'],
+    careGiftAccept: ['ありがと。じゃあ早速、塗ってくれる？ 背中とか、もう自分じゃ届かないんだ', 'えへへ、気がきくね。…ほら、ここ。塗って'],
+    // v2.1：手渡し（F4）・おふるまい（F3）。キャラ固有は heroines[].lines / extra で上書き
+    handGiftOk: [['あ…ありがとうございます。じゃあ、いただきます', 'いいんですか？ …じゃあ、遠慮なく'], ['わ、ありがとう。ちょうど小腹が空いてたんだ', 'いつもありがとう。ちゃんと食べるね'], ['えへへ、うれしい。あとで大事に食べるね', 'もう、〇〇くんたら。…ありがと'], ['ありがとう。〇〇くんがくれるものなら、何でもうれしい', 'ふふ、今日も持ってきてくれたんだ']],
+    handGiftNo: [['あ、いえ…お気持ちだけで', 'すみません、そういうのは…大丈夫です'], ['ごめん、今日はおなかいっぱいで', 'ありがとう。でも今日はいいかな'], ['ごめんね、今ちょっと…また今度ちょうだい'], ['今日はだめ。…食べすぎちゃったの']],
+    oburumai: ['わあ、おいしそう。いただきます', '大家さんのおふるまい、毎月楽しみにしてるんです', '…じゃあ、ひとつだけ。…もうひとつだけ', 'ごちそうさまです。…あ、おかわりもいいですか？'],
     // v1.6：キャラごとの extra に無いときの予備
     party: ['いただきます！', 'みんなで食べると、おいしいね', 'おかわり、ある？'],
     partyAbout: ['{other}さん、いい食べっぷり', '{other}さんと食べるの、楽しいね'],
