@@ -175,12 +175,27 @@ def sfx():
     S['achv'] = (seq([79, 84, 88, 91], ins='gl', gap=0.08, ln=0.3) + [(0.32, 'mb', 96, 0.8, 0.8, .5)], 1.6)
     return S
 
+def click(pitch=1.0, vel=1.0):
+    """「タッ」：短いノイズの立ち上がり＋小さな低音。残響なし"""
+    n = int(0.06 * SR); t = np.arange(n) / SR
+    from scipy.signal import butter, lfilter
+    b, a = butter(2, [900 * pitch / (SR / 2), 4500 * pitch / (SR / 2)], 'band')
+    noise = lfilter(b, a, rng.normal(0, 1, n)) * np.exp(-t / 0.006)
+    body = np.sin(2 * np.pi * 180 * pitch * t) * np.exp(-t / 0.012) * 0.5
+    y = (noise / (np.abs(noise).max() + 1e-9) * 0.7 + body) * np.minimum(1, t / 0.0005)
+    y = y / np.abs(y).max() * 0.8 * vel
+    return np.stack([y, y], 1)
+CLICKS = {'tap': (1.0, 0.55), 'select': (1.0, 0.8), 'cancel': (0.8, 0.7), 'buy': (1.15, 0.8)}
+
 if __name__ == '__main__':
     import sys
     only = sys.argv[1:]
     for k, (ev, ln) in TRACKS.items():
         if only and k not in only: continue
         save(render(ev, ln, loop=True), os.path.join(OUT, 'bgm', k + '.mp3'), 96); print('bgm', k, round(ln, 1), 's')
-    for k, (ev, ln) in sfx().items():
+    for k, (pt, v) in CLICKS.items():   # ボタン・会話送りは「タッ」（v2.2.1）
         if only and k not in only: continue
+        save(click(pt, v), os.path.join(OUT, 'se', k + '.mp3'), 96); print('se', k, 'click')
+    for k, (ev, ln) in sfx().items():
+        if k in CLICKS or (only and k not in only): continue
         save(render(ev, ln, loop=False) * 0.9, os.path.join(OUT, 'se', k + '.mp3'), 96); print('se', k)
