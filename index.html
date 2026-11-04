@@ -758,8 +758,24 @@ function say(name, text, color) {
   text = String(text).replace(/\{kg\}/g, S && S.ctxKg != null ? S.ctxKg : '').replace(/\{gain\}/g, S && S.ctxGain != null ? S.ctxGain : '');
   incoming.push({ name, text: nameFill(text), color, hid, cast: curCast });
   if (!flushPending) { flushPending = true; queueMicrotask(flush); }
+  if (hh) lowNotice(hh, S.h[hid]);
 }
 const narr = t => say('', t);
+// 部屋に入れない親密度の人：段階や服のサイズが変わっていたら、次に会ったときに主人公の感想（v2.2）
+function lowNotice(h, st) {
+  if (!st || canVisit(st) || (S.view && S.view.type === 'room' && S.view.id === h.id)) { if (st) { st.noticeStage = st.stage; st.noticeClothes = st.clothes ? st.clothes.top + ',' + st.clothes.bottom : null; } return; }
+  const cl = st.clothes ? st.clothes.top + ',' + st.clothes.bottom : null;
+  if (st.noticeStage == null) { st.noticeStage = st.stage; st.noticeClothes = cl; return; }   // 初めて会ったときは覚えるだけ
+  const ds = st.stage - st.noticeStage, dc = cl && st.noticeClothes && cl !== st.noticeClothes;
+  const bigger = dc && cl.split(',').reduce((a, v, i) => a + (+v - +(st.noticeClothes.split(',')[i] || 0)), 0) > 0;
+  st.noticeStage = st.stage; st.noticeClothes = cl;
+  const L = D.commonLines || {}, nm = shortName(h), lines = [];
+  if (ds >= 2) lines.push(pick(L.lowNoticeBig || []));
+  else if (ds === 1) lines.push(pick(L.lowNoticeStage || []));
+  else if (ds < 0) lines.push(pick(L.lowNoticeDown || []));
+  if (dc) lines.push(pick((bigger ? L.lowNoticeClothes : L.lowNoticeClothesDown) || []));
+  lines.filter(Boolean).forEach(s => incoming.push({ name: '', text: nameFill(String(s).split('{name}').join(nm)), hid: null, cast: curCast }));
+}
 function line(h, key) {
   const capt = S.h[h.id].captured && h.lines[key + 'Captured'];
   const src = capt || h.lines[key] || (D.commonLines || {})[key];
