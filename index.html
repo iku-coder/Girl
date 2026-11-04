@@ -723,7 +723,7 @@ function flush() {
 function drawMsg() {
   const box = $('#msg');
   let m = Q[0];
-  if (!m) { stageHid = null; drawStage(); box.innerHTML = '<div class="txt narr">　</div>'; box.classList.remove('choosing'); $('#tap').hidden = true; $('#block').hidden = true; settled = true; if (waitingAdvance) queueMicrotask(tryAdvance); return; }
+  if (!m) { stageHid = null; drawStage(); clearSceneBg(); box.innerHTML = '<div class="txt narr">　</div>'; box.classList.remove('choosing'); $('#tap').hidden = true; $('#block').hidden = true; settled = true; if (waitingAdvance) queueMicrotask(tryAdvance); return; }
   const ch = m.choice ? m : (Q[1] && Q[1].choice ? Q[1] : null);
   const line = m.choice ? null : m;
   // ヒロインのセリフが出たら、そのヒロインの立ち絵を出す（会話が終わるまで出したまま）
@@ -743,9 +743,11 @@ function drawMsg() {
   $('#tap').hidden = !more; $('#block').hidden = !ch;
   settled = !more && !ch;
   box.classList.toggle('tut', !!(line && line.tut));
-  if (settled && S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; updateBg(); }
+  if (settled) clearSceneBg();
   if (settled && waitingAdvance) queueMicrotask(tryAdvance);
 }
+// その場面だけの背景（大学・バイト・買い出し・外食など）を元に戻す
+function clearSceneBg() { if (S && S.sceneBg && !S.keepSceneBg) { S.sceneBg = null; updateBg(); } }
 $('#tap').addEventListener('click', () => { Q.shift(); if (!Q.length) stageHid = null; drawMsg(); });
 let stageHid = null;
 // 会話中の立ち絵画面。部屋の中で同じヒロインと話しているときは、部屋の画面の立ち絵を使う
@@ -1090,6 +1092,7 @@ function doAdvance() {
   keepLast = true; queueMicrotask(() => queueMicrotask(() => { keepLast = false; }));
   S.slot++;
   dropStaleFigure();   // 時間が進んだら、前の会話の立ち絵は下げる
+  clearSceneBg();      // 出先の背景も元に戻す（自室・地図の背景へ）
   if (S.slot >= C.slots.length) { night(); return; }
   if (slotName() === '昼' && !S.tutorial) rollPackages();
   // 深夜になったら自室へ。寝るか料理をすると、その日の集計へ
