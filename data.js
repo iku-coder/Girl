@@ -347,6 +347,10 @@ window.GAME_DATA = {
       hide: '親しくない相手には隠そうとしている（デオドラントを増やす、長袖を着る など）',
       careItems: ['care_cream', 'care_deo', 'care_spats', 'care_mint']
     },
+    // v2.2：深夜の訪問・チートデイ・外食のコース
+    lateVisitAffection: 70,                       // 深夜に訪ねられる親密度（攻略済みは常に）
+    cheatDay: { capRate: 2, habitRate: 2, nightRate: 1.5 },   // 月1回、訪問できる人の「今日はチートデイ」。満腹の上限×2、その日の食習慣・胃袋の伸び×2、深夜の胃袋の広がり×1.5
+    courseHabit: [0.7, 1, 1.2, 1.4, 1.6, 1.8],    // コースの段（少食〜無尽蔵）ごとの食習慣の倍率
     doorGift: { maxAff: 35, like: 1, normal: 0, dislike: -1, wary: 3, waryRepeat: 6, refuseWary: 60, askChance: 0.3 },   // F1 ドアノブの差し入れ
     snackBox: { refill: [{ price: 2000, kcal: 3000 }, { price: 4000, kcal: 6500 }], eat: [300, 800], eatRate: [0.6, 1.0, 1.2, 1.5, 1.8, 2.0], habit: 0.005 },   // F2 お菓子箱
     oburumai: { price: 5000, kcal: 1200, kcalNabe: 1800, habit: 0.02, affection: 1, maxWary: 80,                       // F3 大家のおふるまい（月1回・休日の夕）
@@ -456,16 +460,25 @@ window.GAME_DATA = {
   ],
 
   // 外食に誘う：店を選ぶ（v1.7）。bg は背景（famires / teishoku / izakaya）。likeTag が好物なら親密度+2
+  // v2.2：店ごとに6つのコース（少食〜無尽蔵の食べる量に合わせて選ぶ）。courses[i] の満腹・カロリー・値段。二郎系とファミレスは深夜も開いていて、深夜は胃袋が広がる（night）
   restaurants: [
-    { id: 'teishoku', name: '定食屋',           price: 1000,  kcal: 1000, full: 34, affection: 5,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal' },
-    { id: 'famires',  name: 'ファミレス',       price: 1600,  kcal: 1200, full: 38, affection: 5,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'famires',  likeTag: 'sweet' },
-    { id: 'jiro',     name: '二郎系ラーメン',   price: 1200,  kcal: 1900, full: 58, affection: 4,  habit: 0.04, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal' },
-    { id: 'sushi',    name: '回転寿司',         price: 2500,  kcal: 1300, full: 44, affection: 6,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal' },
-    { id: 'izakaya',  name: '居酒屋',           price: 3500,  kcal: 1600, full: 46, affection: 6,  habit: 0.03, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'alcohol' },
-    { id: 'cakebuf',  name: 'ケーキバイキング', price: 3200,  kcal: 2300, full: 52, affection: 6,  habit: 0.05, slots: ['昼', '夕'],       bg: 'famires',  likeTag: 'sweet' },
-    { id: 'yakiniku', name: '焼肉食べ放題',     price: 4500,  kcal: 2600, full: 66, affection: 7,  habit: 0.05, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'fried' },
+    { id: 'teishoku', name: '定食屋',           price: 1000,  kcal: 1000, full: 34, affection: 5,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal',
+      courses: [{ name: '小鉢と味噌汁の軽め定食', full: 18, kcal: 530, price: 700 }, { name: '日替わり定食', full: 32, kcal: 940, price: 1000 }, { name: '生姜焼き定食・ご飯大盛り', full: 48, kcal: 1410, price: 1400 }, { name: '唐揚げ定食・ご飯特盛り', full: 68, kcal: 2000, price: 1800 }, { name: '唐揚げと生姜焼きのW定食・おかわり自由', full: 92, kcal: 2710, price: 2400 }, { name: '定食3人前とカツ丼', full: 125, kcal: 3680, price: 3200 }] },
+    { id: 'famires',  name: 'ファミレス',       price: 1600,  kcal: 1200, full: 38, affection: 5,  habit: 0.03, slots: ['昼', '夕', '夜', '深夜'], bg: 'famires',  likeTag: 'sweet', night: 3,
+      courses: [{ name: '小さめパスタとスープ', full: 18, kcal: 570, price: 1100 }, { name: 'ハンバーグセット', full: 32, kcal: 1010, price: 1600 }, { name: 'ハンバーグとドリア', full: 48, kcal: 1520, price: 2200 }, { name: 'ミックスグリルとピザとパフェ', full: 68, kcal: 2150, price: 2900 }, { name: '全部のせグリル・ピザ2枚・パフェ2つ', full: 92, kcal: 2910, price: 3800 }, { name: 'メニューの端から端まで', full: 125, kcal: 3950, price: 5100 }] },
+    { id: 'jiro',     name: '二郎系ラーメン',   price: 1200,  kcal: 1900, full: 58, affection: 4,  habit: 0.04, slots: ['昼', '夕', '夜', '深夜'], bg: 'teishoku', likeTag: 'meal', night: 4,
+      courses: [{ name: '小ラーメン', full: 18, kcal: 590, price: 800 }, { name: 'ラーメン（普通）', full: 32, kcal: 1050, price: 1200 }, { name: '大ラーメン', full: 48, kcal: 1570, price: 1600 }, { name: '大ラーメン・麺増し', full: 68, kcal: 2230, price: 2200 }, { name: '大ラーメン全部マシマシ', full: 92, kcal: 3010, price: 2900 }, { name: '全部マシマシ大盛りにチャーハンセットと餃子', full: 125, kcal: 4090, price: 3800 }] },
+    { id: 'sushi',    name: '回転寿司',         price: 2500,  kcal: 1300, full: 44, affection: 6,  habit: 0.03, slots: ['昼', '夕', '夜'], bg: 'teishoku', likeTag: 'meal',
+      courses: [{ name: '6皿', full: 18, kcal: 530, price: 1800 }, { name: '10皿', full: 32, kcal: 950, price: 2500 }, { name: '16皿', full: 48, kcal: 1420, price: 3400 }, { name: '25皿', full: 68, kcal: 2010, price: 4500 }, { name: '40皿', full: 92, kcal: 2720, price: 6000 }, { name: '60皿と茶碗蒸しとラーメン', full: 125, kcal: 3690, price: 8000 }] },
+    { id: 'izakaya',  name: '居酒屋',           price: 3500,  kcal: 1600, full: 46, affection: 6,  habit: 0.03, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'alcohol',
+      courses: [{ name: '生1杯とおつまみ', full: 18, kcal: 630, price: 2400 }, { name: '飲み放題・料理5品', full: 32, kcal: 1110, price: 3500 }, { name: '飲み放題・料理8品と〆の雑炊', full: 48, kcal: 1670, price: 4700 }, { name: '宴会コース', full: 68, kcal: 2370, price: 6300 }, { name: '宴会コースに唐揚げ山盛り追加', full: 92, kcal: 3200, price: 8400 }, { name: '宴会コース3人前', full: 125, kcal: 4350, price: 11200 }] },
+    { id: 'cakebuf',  name: 'ケーキバイキング', price: 3200,  kcal: 2300, full: 52, affection: 6,  habit: 0.05, slots: ['昼', '夕'],       bg: 'famires',  likeTag: 'sweet',
+      courses: [{ name: 'ケーキ2個とお茶', full: 18, kcal: 800, price: 2200 }, { name: '60分コース（ケーキ5個）', full: 32, kcal: 1420, price: 3200 }, { name: '90分コース（ケーキ8個とパスタ）', full: 48, kcal: 2120, price: 4300 }, { name: '90分コース（ケーキ12個と軽食全種）', full: 68, kcal: 3010, price: 5800 }, { name: '120分コース（全種制覇）', full: 92, kcal: 4070, price: 7700 }, { name: '時間無制限・ホールケーキ2台', full: 125, kcal: 5530, price: 10200 }] },
+    { id: 'yakiniku', name: '焼肉食べ放題',     price: 4500,  kcal: 2600, full: 66, affection: 7,  habit: 0.05, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'fried',
+      courses: [{ name: 'お手軽コース（60分）', full: 18, kcal: 710, price: 3200 }, { name: 'スタンダードコース（90分）', full: 32, kcal: 1260, price: 4500 }, { name: '上カルビコース', full: 48, kcal: 1890, price: 6100 }, { name: '特選コース', full: 68, kcal: 2680, price: 8100 }, { name: '極みコース（120分・ご飯おかわり自由）', full: 92, kcal: 3620, price: 10800 }, { name: '極みコース・時間無制限', full: 125, kcal: 4920, price: 14400 }] },
     { id: 'dekamori', needShop: 'dekamori', name: 'デカ盛り食堂（挑戦）', price: 0, kcal: 0, full: 0, affection: 5, habit: 0.05, slots: ['昼', '夕'], bg: 'teishoku', likeTag: 'meal', challenge: true },
-    { id: 'french',   name: 'フレンチのコース', price: 12000, kcal: 1500, full: 40, affection: 10, habit: 0.02, slots: ['夜'],             bg: 'teishoku', likeTag: 'sweet' }
+    { id: 'french',   name: 'フレンチのコース', price: 12000, kcal: 1500, full: 40, affection: 10, habit: 0.02, slots: ['夜'],             bg: 'teishoku', likeTag: 'sweet',
+      courses: [{ name: '前菜とスープのプチコース', full: 18, kcal: 680, price: 8400 }, { name: 'ランチコース', full: 32, kcal: 1200, price: 12000 }, { name: 'ディナーコース', full: 48, kcal: 1800, price: 16200 }, { name: 'シェフのおまかせ', full: 68, kcal: 2550, price: 21600 }, { name: 'おまかせにパン・チーズ・デザートワゴン全部', full: 92, kcal: 3450, price: 28800 }, { name: 'おまかせを2周', full: 125, kcal: 4690, price: 38400 }] }
   ],
 
   /* ---- 一緒に食べる系の行動 ---- */
@@ -709,6 +722,10 @@ window.GAME_DATA = {
         ] } } }
   ],
   commonLines: {
+    cheatDay: [['…チートデイ？ 今日だけなら、まあ…'], ['今日はチートデイ！ 好きなだけ食べていいんだよね？'], ['やった、チートデイ！ 今日は遠慮しないからね'], ['チートデイだね。…〇〇くんが用意してくれるもの、全部食べちゃう']],
+    lateMeal_jiro: ['こんな時間にラーメン…背徳の味だね', '夜中のニンニク、明日のことは考えないことにする', 'スープまで飲んじゃった。…夜中なのに'],
+    lateMeal_famires: ['深夜のファミレスって、なんでこんなにおいしいんだろ', 'この時間のドリンクバー、なんだか特別な感じ', '夜中のパフェ…罪の味がする'],
+    lateMeal: ['夜食って、どうしてこんなに罪の味がするんだろうね'],
     // v2.2：部屋に入れない親密度の人の変化に、次に会ったとき主人公が気づく（地の文。{name}＝下の名前）
     lowNoticeStage: ['（…{name}さん、前に会ったときより、ふっくらした気がする）', '（頬のあたりが、少し丸くなったような…？）', '（気のせいかな。{name}さん、少し柔らかい雰囲気になった）', '（観察眼に映る数字が、前より増えている。…やっぱり、ふっくらしたんだ）'],
     lowNoticeBig: ['（…{name}さん、しばらく見ないうちに、ずいぶんふくよかになった）', '（思わず二度見した。{name}さん、前よりひと回り大きくなっている）'],

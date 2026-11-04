@@ -588,7 +588,7 @@ const present = h => {
   if (st && st.away && S.day <= st.away.until) return false;   // 留守（栞の夫の一時帰国など）
   if (st && st.sick && slotName() !== '深夜') return true;       // 風邪で寝込んでいる（E3）
   // 深夜：会えるのは攻略した住人だけ（夜に部屋にいる人。真理子は仕事帰り）
-  if (slotName() === '深夜') return !!(st && st.captured) && (h.id === 'mariko' || (h.id === 'rin' ? RIN_SHIFT[rinShift()].includes('夜') : (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes('夜')));
+  if (slotName() === '深夜') return !!(st && lateOk(st)) && (h.id === 'mariko' || (h.id === 'rin' ? RIN_SHIFT[rinShift()].includes('夜') : (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes('夜')));
   if (st && st.extraSlot && st.extraSlot.day === S.day && st.extraSlot.slot === slotName()) return true;   // 雨の日は家にいる（S1）
   if (h.id === 'rin') return RIN_SHIFT[rinShift()].includes(slotName());
   return (h.schedule[isWeekend() ? 'weekend' : 'weekday'] || []).includes(slotName());
@@ -977,7 +977,7 @@ function stageReaction(h, st) {
 }
 function stretch(h) {
   const st = S.h[h.id];
-  if (st.full >= st.cap * C.stretchThreshold) {
+  if (st.full >= capOf(st) * C.stretchThreshold) {
     st.cap = Math.min(C.maxCapacity, st.cap + Math.round(C.stretchOnEat * mod(h, 'stretch')));
     narr('（お腹をさすっている。少し苦しそうだ）');
   }
@@ -1086,6 +1086,11 @@ const diffOf = () => (C.difficulty || {})[(S && S.diff) || 'normal'] || { wary: 
 const shortName = h => h.name.split(/\s+/).pop();
 function sayOther(h, key, other) { say(h.name, String(line(h, key)).split('{other}').join(shortName(other)), h.color); }
 const hasFac = id => !!(S.fac && S.fac[id]);
+// 満腹ゲージの上限（チートデイはその日だけ2倍。v2.2）
+const isCheat = st => st && st.cheat === S.day;
+const capOf = st => Math.round(st.cap * (isCheat(st) ? ((C.cheatDay || {}).capRate || 2) : 1));
+const lateOk = st => st.captured || st.aff >= (C.lateVisitAffection || 70);   // 深夜に訪ねられる
+const cheatYm = () => yearOf() + '-' + (dateOf(S.day).getMonth() + 1);
 /* ---------- 親密度0〜34でも太らせる手段（v2.1） ---------- */
 const presentAt = (h, sl) => { const s0 = S.slot; S.slot = C.slots.indexOf(sl); try { return present(h); } finally { S.slot = s0; } };
 const townOpen = id => !!(S.town && S.town[id]);
@@ -1141,7 +1146,7 @@ function doorHTML(h) {
 function doorNight(h, st, rep) {
   const DG = C.doorGift; if (!DG) return;
   // 前の晩に入りきらなかった分
-  if (st.doorCarry) { const room = Math.max(0, st.cap - st.full), eat = Math.min(st.doorCarry.full, room);
+  if (st.doorCarry) { const room = Math.max(0, capOf(st) - st.full), eat = Math.min(st.doorCarry.full, room);
     if (eat > 0) { const k = st.doorCarry.kcal * eat / st.doorCarry.full; st.intake += k; st.full += eat; } st.doorCarry = null; }
   const dr = st.door; if (!dr || dr.day !== S.day) return;
   const f = FOOD[dr.food]; if (!f) { st.door = null; return; }
@@ -1151,8 +1156,8 @@ function doorNight(h, st, rep) {
   else {
     // 食生活の区分（食習慣・満腹の上限）も、手渡しの差し入れと同じに数える（v2.2）
     const tr = eatTrack(h, st, f.id), kcal = Math.round(f.kcal * giftMul(h, st, f) * (tr === 'bored' ? 0.8 : 1));
-    const room = Math.max(0, st.cap - st.full), eat = Math.min(f.full, room);
-    if (f.full > room && st.full >= st.cap * .7) st.cap = Math.min(C.maxCapacity, st.cap + C.stretchOnRefuse);   // 入りきらないほど食べて、胃袋が広がる
+    const room = Math.max(0, capOf(st) - st.full), eat = Math.min(f.full, room);
+    if (f.full > room && st.full >= capOf(st) * .7) st.cap = Math.min(C.maxCapacity, st.cap + C.stretchOnRefuse);   // 入りきらないほど食べて、胃袋が広がる
     st.intake += kcal * (f.full ? eat / f.full : 1); st.full += eat; st.gifts++; st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
     (st.tagsToday = st.tagsToday || []).push(...f.tags);
     if (f.full > eat) st.doorCarry = { kcal: kcal * (f.full - eat) / f.full, full: f.full - eat };
@@ -1410,7 +1415,14 @@ function night(silent) {
       const [a, b] = C.diet.days; st.diet = { until: S.day + 1 + a + Math.floor(Math.random() * (b - a + 1)) }; st.dietNew = true;
     }
     if (S.building < 30) st.aff = clamp(st.aff - 1, 0, 100);
+    if (isCheat(st) && C.cheatDay) {   // チートデイ：その日の食習慣・胃袋の伸びを倍に
+      const dh = st.habit - (st.habitDay0 == null ? st.habit : st.habitDay0), dc = st.cap - (st.capDay0 == null ? st.cap : st.capDay0), k = (C.cheatDay.habitRate || 2) - 1;
+      if (dh > 0) st.habit = clamp(st.habit + dh * k, 0, 1);
+      if (dc > 0) st.cap = Math.min(C.maxCapacity, Math.round(st.cap + dc * k));
+      rep.events.push(`${h.name}のチートデイが終わった。…今日の食べた量は、いつもの比じゃなかった。`);
+    }
     st.habit = clamp(st.habit - C.habitDecayPerDay * mod(h, 'habitDecay'), 0, 1);
+    st.habitDay0 = st.habit; st.capDay0 = st.cap;
     const pk = S.packages[h.id];
     if (pk && S.day - pk.day + 1 >= C.packageExpireDays) {
       delete S.packages[h.id];
@@ -1986,7 +1998,7 @@ function roomHTML(h) {
   const known = Object.entries(st.known);
   const eo = D.meals.eatOut, hc = D.meals.homeCook;
   const RS = (D.restaurants || []).filter(r => r.slots.includes(s)), minP = RS.length ? Math.min(...RS.map(r => r.price)) : eo.price;
-  const eoOk = !st.ate && st.aff >= eo.minAffection && RS.length && S.money >= minP;
+  const late = s === '深夜', eoOk = !(late ? st.ateLate === S.day : st.ate) && st.aff >= eo.minAffection && RS.length && S.money >= minP;
   const hcOk = !st.ate && st.aff >= hc.minAffection && hc.slots.includes(s) && knownRecipes().some(r => S.money >= r.cost);
   const eoNote = st.aff < eo.minAffection ? `親密度${eo.minAffection}以上` : st.ate ? '今日はもう食べた' : !RS.length ? 'この時間は開いている店がない' : `店を選ぶ／${yen(minP)}〜`;
   const hcNote = st.aff < hc.minAffection ? `親密度${hc.minAffection}以上` : st.ate ? '今日はもう食べた' : `${hc.slots.join('・')}／${knownRecipes().length}品から選ぶ`;
@@ -2004,6 +2016,7 @@ function roomHTML(h) {
       <button class="btn" data-act="cookMenu" ${hcOk ? '' : 'disabled'}>${hc.label}<small>${hcNote}</small></button>
       ${h.id === 'shiori' && st.aff >= 35 ? `<button class="btn" data-act="lesson" ${S.cook >= 2 && st.lessonDay !== S.day ? '' : 'disabled'}>料理を教える<small>${S.cook < 2 ? '料理の腕2から' : st.lessonDay === S.day ? '今日はもう教えた' : '一緒に作って、二人で食べる・時間が進む'}</small></button>` : ''}
       ${h.id === 'rio' && S.h.hinata && S.h.hinata.aff >= 70 ? `<button class="btn" data-act="giftOpenH" ${invCount() ? '' : 'disabled'}>ひなたと一緒に食べる<small>${invCount() ? 'ひなたの「一緒に食べよ？」は断れない' : '手持ちなし'}</small></button>` : ''}
+      ${C.cheatDay ? (() => { const used = st.cheatMonth === cheatYm(), on = isCheat(st); return `<button class="btn ${on ? 'primary' : ''}" data-act="cheatDay" ${!on && !used ? '' : 'disabled'}>${on ? 'チートデイ中' : 'チートデイにする'}<small>${on ? `満腹の上限 ${capOf(st)}・食習慣の伸び×2` : used ? '今月はもう使った' : '月1回／満腹×2・食生活の効果×2・深夜×1.5'}</small></button>`; })() : ''}
       ${st.target && st.stage >= st.target ? `<button class="btn" data-act="keepToggle">${st.keep ? '体型を保つのをやめる' : '体型を保つ'}<small>${st.keep ? `維持中（段階${st.target}）` : `目標の段階${st.target}に到達`}</small></button>` : ''}
       ${st.clothesNew && st.aff >= C.clothesTrip.minAffection ? `<button class="btn wide" data-act="clothesTrip" ${S.money >= C.clothesTrip.price ? '' : 'disabled'}>服を買いに行く<small>サイズが上がった服を一緒に選ぶ／${yen(C.clothesTrip.price)}・時間が進む</small></button>` : ''}
       <button class="btn wide" data-act="leave">部屋を出る<small>時間が進む（${s} → ${C.slots[S.slot + 1] || '翌朝'}）</small></button>
@@ -2016,8 +2029,8 @@ function roomHTML(h) {
       <div class="row"><span>体型</span><span>段階${st.stage}/${D.stages.length}　${stageInfo(st.stage).name}${st.weight >= maxW(h) ? '　<span class="chip">上限</span>' : ''}</span></div>
       <div class="desc">${esc(stageInfo(st.stage).desc || '')}${progressText(h, st) ? '。' + esc(progressText(h, st)) : ''}</div>
       ${st.clothes ? `<div class="desc">服：上 ${CS[st.clothes.top].name}／下 ${CS[st.clothes.bottom].name}。${esc(tightText(h, st))}</div>` : ''}
-      <div class="row"><span>満腹</span><span class="num">${st.full}／${st.cap}</span></div>
-      <div class="bar full"><i style="width:${st.full / st.cap * 100}%"></i></div>
+      <div class="row"><span>満腹</span><span class="num">${st.full}／${capOf(st)}</span></div>
+      <div class="bar full"><i style="width:${st.full / capOf(st) * 100}%"></i></div>
       ${h.id === 'aoi' ? `<div class="row"><span>嫉妬</span><span class="num">${Math.round(st.jeal || 0)}／100${(st.jeal || 0) >= 50 ? '（やけ食い寸前）' : ''}</span></div>` : ''}
       ${h.id === 'mariko' && marikoRank(st).shop ? `<div class="row"><span>勤め先</span><span>${esc(marikoRank(st).shop)}（${esc(marikoRank(st).name)}）</span></div>` : ''}
       ${h.id === 'karen' ? `<div class="row"><span>フォロワー</span><span class="num">${karenFollowers(st)}万人${karenCheat(st) ? '・今日はチートデイ（差し入れ2倍）' : ''}</span></div>` : ''}
@@ -2108,11 +2121,11 @@ function shopHTML() {
 function giftHTML(h) {
   const st = S.h[h.id];
   const late = slotName() === '深夜';
-  return `<h3>${esc(h.name)}に差し入れ</h3><div class="sub">満腹 <span class="num">${st.full}／${st.cap}</span>${late ? '・深夜（夜食は物によって胃袋が広がる）' : ''}</div>
+  return `<h3>${esc(h.name)}に差し入れ</h3><div class="sub">満腹 <span class="num">${st.full}／${capOf(st)}</span>${late ? '・深夜（夜食は物によって胃袋が広がる）' : ''}</div>
     <div class="grid3">${Object.entries(S.inv).map(([id, n]) => {
       const f = FOOD[id];
       const mark = f.tags.some(t => st.known[t] === 'like') ? '<span class="chip like">好き</span>' : f.tags.some(t => st.known[t] === 'dislike') ? '<span class="chip warn">苦手</span>' : '';
-      return `<div class="card3 ${st.full + f.full > st.cap ? 'over' : ''}"><b>${esc(f.name)}</b>${mark}<small>${f.kcal}kcal・満腹+${f.full}</small>${late && f.night ? `<small class="up">夜食：胃袋+${f.night}</small>` : ''}
+      return `<div class="card3 ${st.full + f.full > capOf(st) ? 'over' : ''}"><b>${esc(f.name)}</b>${mark}<small>${f.kcal}kcal・満腹+${f.full}</small>${late && f.night ? `<small class="up">夜食：胃袋+${f.night}</small>` : ''}
         <span class="num">×${n}</span><button class="mini" data-act="give" data-id="${id}">渡す</button></div>`;
     }).join('')}</div>
     <button class="btn close" data-act="close">やめる</button>`;
@@ -2486,14 +2499,14 @@ function challengeGo(h) {
   if (st.diet && !st.captured) { speak(h, 'dietRefuse'); render(); return; }
   sceneBg('teishoku'); st.ate = true;
   narr(`（商店街のデカ盛り食堂。${h.name}の前に「${m.name}」がどんと置かれた。${m.kcal}kcal、制限時間30分）`);
-  const room0 = Math.max(0, st.cap - st.full), power = room0 * (1 + (CH.bonus[eatLevel(st)] || 0));
+  const room0 = Math.max(0, capOf(st) - st.full), power = room0 * (1 + (CH.bonus[eatLevel(st)] || 0));
   if (power >= m.full) {
-    st.intake += m.kcal; st.full = st.cap; st.chal = Math.min(CH.menus.length, (st.chal || 0) + 1); addAff(h, 5);
+    st.intake += m.kcal; st.full = capOf(st); st.chal = Math.min(CH.menus.length, (st.chal || 0) + 1); addAff(h, 5);
     flagsOf(h).push('challenge_' + (tier + 1)); if (tier === 2) S.teraDone = true;
     narr('（時計の針が残り数分を指したところで、器が空になった。店主が手をたたき、壁に写真が貼られた）'); speak(h, 'challengeWin');
     st.rep = [{ day: S.day, text: `商店街のデカ盛り「${m.name}」を完食した` }].concat(st.rep || []).slice(0, C.reputationKeep || 4);
   } else {
-    const ate = Math.round(m.kcal * Math.min(1, power / m.full)); S.money -= CH.price; st.intake += ate; st.full = st.cap; addAff(h, 2);
+    const ate = Math.round(m.kcal * Math.min(1, power / m.full)); S.money -= CH.price; st.intake += ate; st.full = capOf(st); addAff(h, 2);
     narr(`（あと少しのところで、箸が止まった。…失敗。代金 ${yen(CH.price)}）`); speak(h, 'challengeLose');
   }
   stretch(h); S.view = { type: 'map' }; advanceSlot();
@@ -2559,7 +2572,7 @@ function autoDay() {
         return;
       }
       if (!st.met || st.aff < 35 || st.diet || (!st.captured && st.wary >= C.waryGiftRefuse)) return;
-      const f = D.foods.filter(f => !f.leftover && f.price <= budget && f.price <= S.money && f.tags.some(t => isLike(h, st, t)) && st.full + f.full <= st.cap).sort((a, b) => b.kcal - a.kcal)[0];
+      const f = D.foods.filter(f => !f.leftover && f.price <= budget && f.price <= S.money && f.tags.some(t => isLike(h, st, t)) && st.full + f.full <= capOf(st)).sort((a, b) => b.kcal - a.kcal)[0];
       if (!f) return; st.lastSeen = S.day;
       budget -= f.price; S.money -= f.price; st.full += f.full; st.intake += f.kcal; st.gifts++; st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
       f.tags.forEach(t => { if (isLike(h, st, t)) st.known[t] = 'like'; }); addAff(h, C.giftLikeAffection);
@@ -2673,6 +2686,12 @@ const ACT = {
     const m = S.phone.log[+d.i], r = m.replies[+d.r], h = H[m.id], st = S.h[h.id]; if (m.reply != null) return;
     m.reply = +d.r; st.lastSeen = S.day; addAff(h, r.aff || 1); if (r.habit) st.habit = clamp(st.habit + r.habit, 0, 1);
     save(); openModal('phone', phoneHTML(+d.i)); render();
+  },
+  cheatDay() {   // v2.2 月1回のチートデイ
+    const h = room(), st = S.h[h.id]; if (!canVisit(st) || st.cheatMonth === cheatYm() || isCheat(st)) return;
+    st.cheat = S.day; st.cheatMonth = cheatYm();
+    if (st.habitDay0 == null) st.habitDay0 = st.habit; if (st.capDay0 == null) st.capDay0 = st.cap;
+    sfx('heart'); speak(h, 'cheatDay'); narr(`（今日は${shortName(h)}のチートデイ。満腹の上限が ${st.cap} → ${capOf(st)} になった。今日の食習慣と胃袋の伸びは2倍、深夜の夜食は1.5倍）`); render();
   },
   keepToggle() { const h = room(), st = S.h[h.id]; st.keep = !st.keep; if (st.keep) speak(h, 'keepOn'); render(); },
   setDiff(d) { S.diff = d.k; save(); openModal('settings', settingsHTML()); render(); },
@@ -2926,7 +2945,7 @@ const ACT = {
       }
       tutorialRent(h); return;
     }
-    if (slotName() === '深夜' && !st.captured) { narr(`${h.room}号室。…深夜だ。こんな時間に訪ねられるのは、特別な関係の住人だけだ。`); return; }
+    if (slotName() === '深夜' && !lateOk(st)) { narr(`${h.room}号室。…深夜だ。こんな時間に訪ねられるのは、もっと親しい住人だけだ。（親密度${C.lateVisitAffection || 70}から）`); return; }
     // F1 まだ訪ねられない人：ドアノブに差し入れを掛けられる（荷物・家賃・依頼の用がないとき）
     if (C.doorGift && !canVisit(st) && !st.sick && st.aff < C.doorGift.maxAff && !(present(h) && (S.packages[h.id] || (isMonthEnd() && !S.rentDone[h.id]) || reqOf(h)))) { openModal('door', doorHTML(h)); return; }
     if (!present(h)) {
@@ -3062,9 +3081,9 @@ const ACT = {
     const bad = f.tags.filter(t => isDislike(h, st, t));
     if (!forced && bad.length && !favorable(st)) { sfx('refuse'); bad.forEach(t => { st.known[t] = 'dislike'; }); speak(h, 'giftDislike'); addAff(h, -2); render(); return; }
     const warmDislike = bad.length > 0;
-    if (st.full + f.full > st.cap) {
+    if (st.full + f.full > capOf(st)) {
       if (!eatSay(h, 'full')) speak(h, 'full'); addWary(h, C.waryOverfull);
-      if (st.full >= st.cap * .7) st.cap = Math.min(C.maxCapacity, st.cap + C.stretchOnRefuse);
+      if (st.full >= capOf(st) * .7) st.cap = Math.min(C.maxCapacity, st.cap + C.stretchOnRefuse);
       render(); return;
     }
     S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
@@ -3074,7 +3093,7 @@ const ACT = {
     aoiJealous(h);
     if (h.id === 'himeka' && st.order === f.id) { st.order = null; speak(h, 'orderOk'); addAff(h, 4); }
     // 深夜の差し入れ（夜食）は、物によって胃袋（満腹ゲージの上限）が少し広がる
-    if (slotName() === '深夜' && f.night && st.cap < C.maxCapacity) { st.cap = Math.min(C.maxCapacity, st.cap + f.night); narr(`（深夜の${f.name}。…胃袋が少し広がった気がする。満腹の上限 +${f.night}）`); }
+    if (slotName() === '深夜' && f.night && st.cap < C.maxCapacity) { const nx = Math.round(f.night * (isCheat(st) ? (C.cheatDay.nightRate || 1.5) : 1)); st.cap = Math.min(C.maxCapacity, st.cap + nx); narr(`（深夜の${f.name}。…胃袋が少し広がった気がする。満腹の上限 +${nx}）`); }
     if ((hotDay() && f.tags.includes('cold')) || (coldDay() && f.tags.includes('hot'))) { addAff(h, 2); speak(h, hotDay() ? 'hotDay' : 'coldDay'); }
     if (h.id === 'karen' && karenCheat(st)) narr('（今日はチートデイ。差し入れはいつもの倍、おいしく食べてもらえる）');
     if (h.id === 'aoi' && st.yake === S.day) narr('（やけ食いの勢いで、いつもより多く食べている）');
@@ -3116,20 +3135,33 @@ const ACT = {
   cookMenu(d) {
     const h = d && d.id ? H[d.id] : room(), st = S.h[h.id];
     const isLike = r => r.tags.some(t => h.likes.includes(t) || (st.acquired || {})[t]);
-    openModal('cook', `<h3>${esc(h.name)}に何を作る？</h3><div class="sub">料理の腕 ${S.cook}／${cookMax()}・満腹 ${st.full}／${st.cap}</div>
+    openModal('cook', `<h3>${esc(h.name)}に何を作る？</h3><div class="sub">料理の腕 ${S.cook}／${cookMax()}・満腹 ${st.full}／${capOf(st)}</div>
       ${knownRecipes().slice().reverse().map(r => `<div class="item"><div>${esc(r.name)} ${st.known && r.tags.some(t => st.known[t] === 'like') && isLike(r) ? '<span class="chip like">好き</span>' : ''}<small>${r.kcal}kcal・満腹+${r.full}</small></div>
         <span class="num">${yen(r.cost)}</span><button class="mini" data-act="meal" data-kind="homeCook" data-recipe="${r.id}" data-id="${h.id}" ${S.money >= r.cost ? '' : 'disabled'}>作る</button></div>`).join('')}
       <button class="btn close" data-act="close">やめる</button>`);
   },
   eatOutMenu() {
     const h = room(), st = S.h[h.id], s = slotName();
-    openModal('eatout', `<h3>${esc(h.name)}を外食に誘う</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>・満腹 <span class="num">${st.full}／${st.cap}</span></div>
+    openModal('eatout', `<h3>${esc(h.name)}を外食に誘う</h3><div class="sub">所持金 <span class="num">${yen(S.money)}</span>・満腹 <span class="num">${st.full}／${capOf(st)}</span>・食べる量「${esc(eatLabel(st))}」${s === '深夜' ? '・深夜（夜食で胃袋が広がる）' : ''}</div>
       <div class="grid3">${(D.restaurants || []).filter(r => r.slots.includes(s) && (!r.needShop || townOpen(r.needShop))).map(r => {
         const like = (h.likes || []).includes(r.likeTag) || (st.acquired || {})[r.likeTag];
-        return `<div class="card3 ${st.full + r.full > st.cap ? 'over' : ''}"><b>${esc(r.name)}</b>${shopRank(r.id) === 'vip' ? '<span class="chip like">顔パス</span>' : shopRank(r.id) ? '<span class="chip">常連</span>' : ''}${like && st.known && st.known[r.likeTag] === 'like' ? '<span class="chip like">好き</span>' : ''}
-          ${r.challenge ? `<small>${esc(C.challenge.menus[Math.min(st.chal || 0, 2)].name)}に挑戦（満腹${C.challenge.menus[Math.min(st.chal || 0, 2)].full}ぶん）</small><span class="num">成功で無料／失敗${yen(C.challenge.price)}</span>` : `<small>${r.kcal}kcal・満腹+${r.full}</small><span class="num">${yen(r.price)}</span>`}
-          <button class="mini" data-act="meal" data-kind="eatOut" data-place="${r.id}" ${S.money >= r.price ? '' : 'disabled'}>誘う</button></div>`; }).join('')}</div>
+        const cs = r.courses || [], lo = cs.length ? Math.min(...cs.map(c => c.price)) : r.price;
+        return `<div class="card3"><b>${esc(r.name)}</b>${shopRank(r.id) === 'vip' ? '<span class="chip like">顔パス</span>' : shopRank(r.id) ? '<span class="chip">常連</span>' : ''}${like && st.known && st.known[r.likeTag] === 'like' ? '<span class="chip like">好き</span>' : ''}
+          ${r.challenge ? `<small>${esc(C.challenge.menus[Math.min(st.chal || 0, 2)].name)}に挑戦（満腹${C.challenge.menus[Math.min(st.chal || 0, 2)].full}ぶん）</small><span class="num">成功で無料／失敗${yen(C.challenge.price)}</span>
+          <button class="mini" data-act="meal" data-kind="eatOut" data-place="${r.id}">誘う</button>`
+          : `<small>${cs.length}コース${s === '深夜' && r.night ? `・夜食で胃袋+${r.night}` : ''}</small><span class="num">${yen(lo)}〜</span>
+          <button class="mini" data-act="courseMenu" data-place="${r.id}" ${S.money >= lo ? '' : 'disabled'}>コースを選ぶ</button>`}</div>`; }).join('')}</div>
       <button class="btn close" data-act="close">やめる</button>`);
+  },
+  // v2.2 店ごとのコース（少食〜無尽蔵）。今の食べる量に合うコースに「ちょうどいい」
+  courseMenu(d) {
+    const h = room(), st = S.h[h.id], r = (D.restaurants || []).find(x => x.id === d.place); if (!r) return;
+    const lv = eatLevel(st), room0 = capOf(st) - st.full, vip = shopRank(r.id) === 'vip';
+    openModal('eatout', `<h3>${esc(r.name)}</h3><div class="sub">${esc(h.name)}の満腹 <span class="num">${st.full}／${capOf(st)}</span>・食べる量「${esc(eatLabel(st))}」・所持金 <span class="num">${yen(S.money)}</span></div>
+      <div class="grid3">${(r.courses || []).map((c, i) => { const pr = vip ? Math.round(c.price * C.regulars.vipDiscount) : c.price;
+        return `<div class="card3 ${c.full > room0 ? 'over' : ''}"><b>${esc(c.name)}</b>${i === lv ? '<span class="chip like">ちょうどいい</span>' : ''}<small>${esc((C.eatLabels[i] || {}).text || '')}向け・${c.kcal}kcal・満腹+${c.full}</small>
+          <span class="num">${yen(pr)}</span><button class="mini" data-act="meal" data-kind="eatOut" data-place="${r.id}" data-course="${i}" ${S.money >= pr ? '' : 'disabled'}>これにする</button></div>`; }).join('')}</div>
+      <button class="btn" data-act="eatOutMenu">店を選び直す</button><button class="btn close" data-act="close">やめる</button>`);
   },
   meal(d) {
     if (modalKind === 'cook') { modalKind = 'cookDone'; closeModal(); }
@@ -3139,18 +3171,22 @@ const ACT = {
     const rcp = d.kind === 'homeCook' ? RECIPES.find(r => r.id === d.recipe) : null;
     const place = d.place ? (D.restaurants || []).find(r => r.id === d.place) : null;
     let m = rcp ? Object.assign({}, base, { kcal: rcp.kcal, full: rcp.full, price: rcp.cost }) : place ? Object.assign({}, base, place) : base;
+    const ci = d.course != null && place && place.courses ? +d.course : null;   // v2.2 コース
+    if (ci != null && place.courses[ci]) m = Object.assign({}, m, place.courses[ci], { habit: place.habit * ((C.courseHabit || [])[ci] || 1), courseName: place.courses[ci].name });
+    const lateM = slotName() === '深夜';
     if (place && shopRank(place.id)) m = Object.assign({}, m, { kcal: Math.round(m.kcal * C.regulars.bigRate) + (shopRank(place.id) === 'vip' ? C.regulars.vipExtra : 0), price: shopRank(place.id) === 'vip' ? Math.round(m.price * C.regulars.vipDiscount) : m.price });
     dietStopCheck(h, st);
     if (st.diet && !st.captured) { speak(h, 'dietRefuse'); render(); return; }
-    if (st.full + m.full > st.cap) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
+    if (st.full + m.full > capOf(st)) { if (!eatSay(h, 'full')) speak(h, 'full'); render(); return; }
     const trM = rcp ? eatTrack(h, st, 'r:' + rcp.id) : place ? eatTrack(h, st, 'p:' + place.id) : null;
     const kcal = Math.round(m.kcal * (rcp && hasFac('cooker') ? 1.2 : 1) * (trM === 'bored' ? 0.8 : 1));
     if (rcp) narr(`（${rcp.name}を作った）`);
-    S.money -= m.price; st.full += m.full; st.intake += kcal; st.ate = true; sfx('eat'); if (place) (st.tagsToday = st.tagsToday || []).push(place.likeTag, ...({ jiro: ['garlic'], yakiniku: ['garlic'] }[place.id] || []));
+    S.money -= m.price; st.full += m.full; st.intake += kcal; if (lateM) st.ateLate = S.day; else st.ate = true; sfx('eat'); if (place) (st.tagsToday = st.tagsToday || []).push(place.likeTag, ...({ jiro: ['garlic'], yakiniku: ['garlic'] }[place.id] || []));
     aoiJealous(h);
     if (d.kind === 'eatOut') {
       if (place && st.examParty && S.day - st.examParty <= 1) { st.examParty = null; addAff(h, 3); narr('（打ち上げ。今日は、とことん食べる日だ）'); }
-      if (place) { sceneBg(place.bg); narr(`（${h.name}と、${place.name}へ行った）`);
+      if (place) { sceneBg(place.bg); narr(`（${h.name}と、${lateM ? '深夜の' : ''}${place.name}へ行った${m.courseName ? `。「${m.courseName}」` : ''}）`);
+        if (lateM) { speak(h, (D.commonLines || {})['lateMeal_' + place.id] || h.lines['lateMeal_' + place.id] ? 'lateMeal_' + place.id : 'lateMeal'); if (place.night && st.cap < C.maxCapacity) { const nx = Math.round(place.night * (isCheat(st) ? (C.cheatDay.nightRate || 1.5) : 1)); st.cap = Math.min(C.maxCapacity, st.cap + nx); narr(`（深夜の${place.name}。…胃袋が少し広がった気がする。満腹の上限 +${nx}）`); } }
         S.shopCnt = S.shopCnt || {}; S.shopCnt[place.id] = (S.shopCnt[place.id] || 0) + 1; st.shopWith = st.shopWith || {}; st.shopWith[place.id] = (st.shopWith[place.id] || 0) + 1;
         if (shopRank(place.id) === 'vip') narr('（「いつもありがとね」と、店主がおまけの一品を付けてくれた）'); else if (shopRank(place.id) === 'regular') narr('（「大盛りにしときますね」と、店員さんが笑った）');
         if (st.shopWith[place.id] >= C.regulars.heroineRegular) addAff(h, 1); if ((h.likes || []).includes(place.likeTag) || (st.acquired || {})[place.likeTag]) { addAff(h, 2); st.known[place.likeTag] = 'like'; } }
