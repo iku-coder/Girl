@@ -1,7 +1,7 @@
 // 使い方: node tools/check_scenes.js scenes/akane.js [scenes/xxx.js ...]
 // 追加シーンファイル（window.addScenes('<id>', [...], {...})）の形式チェック
 const fs = require('fs'), path = require('path');
-const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'town', 'campus', 'job', 'shopping', 'diet', 'dietEnd', 'scale', 'clothes', 'birthday', 'season', 'rioHinata', 'lesson', 'videoCall', 'husbandAfter', 'jealousy', 'rentLate', 'lateNight', 'stashEat', 'measure', 'stakeout', 'fitness', 'route', 'twinGap', 'twinSwap', 'twinSwap2', 'cheat'];
+const TYPES = ['morning', 'package', 'rent', 'rentExtra', 'talk', 'visit', 'intro', 'evening', 'invite', 'night', 'floor', 'floor100', 'sick', 'recover', 'delivery', 'oldClothes1', 'oldClothes2', 'oldClothes3', 'favClothes', 'partyDress', 'town', 'campus', 'job', 'shopping', 'diet', 'dietEnd', 'scale', 'clothes', 'birthday', 'season', 'rioHinata', 'lesson', 'videoCall', 'husbandAfter', 'jealousy', 'rentLate', 'lateNight', 'stashEat', 'measure', 'stakeout', 'fitness', 'route', 'twinGap', 'twinSwap', 'twinSwap2', 'cheat'];
 const COND = ['tiers', 'minAff', 'maxAff', 'flag', 'noFlag', 'late', 'weekend', 'slot', 'captured', 'minStage', 'maxStage', 'minMoney', 'chance', 'minHabit', 'season'];
 const NODE = ['say', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'branch', 'choices', 'prompt', 'next'];
 const CHOICE = ['text', 'line', 'if', 'aff', 'wary', 'building', 'money', 'habit', 'setFlag', 'clearFlag', 'say', 'next', 'silent'];

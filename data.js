@@ -206,6 +206,7 @@ window.GAME_DATA = {
       { id: 'shogatsu',   name: 'お正月',       label: '初詣に誘う',         from: '01-01', to: '01-03', slots: ['朝', '昼', '夕'], bg: 'town', kcal: 1400 },
       { id: 'valentine',  name: 'バレンタイン', label: 'バレンタインに会う', from: '02-14', to: '02-14', slots: ['夕', '夜'],       bg: 'room101', kcal: 900 },
       { id: 'hinamatsuri',name: 'ひな祭り',     label: 'ひな祭りに誘う',     from: '03-03', to: '03-03', slots: ['昼', '夕', '夜'], bg: 'room101', kcal: 900 },
+      { id: 'whiteday',   name: 'ホワイトデー', label: 'ホワイトデーのお返し', from: '03-14', to: '03-14', slots: ['昼', '夕', '夜'], bg: 'room101', kcal: 0, multi: true },
       // キャラ専用の行事（only の住人だけ誘える）
       { id: 'setsubun',     name: '節分',         label: '陽守神社の節分祭へ',   from: '02-03', to: '02-03', slots: ['昼', '夕'],       bg: 'town', kcal: 900,  only: ['chihaya'] },
       { id: 'shichigosan',  name: '七五三',       label: '陽守神社の七五三へ',   from: '11-15', to: '11-15', slots: ['昼', '夕'],       bg: 'town', kcal: 700,  only: ['chihaya'] },
@@ -240,6 +241,17 @@ window.GAME_DATA = {
       snacks: { by: 'eat', label: 'お菓子', text: ['お菓子は、どこにも置いていない', '棚に、ビスケットの箱がひとつ', 'かごに、お菓子が少し入っている', '大きなかごが、お菓子でいっぱいになっている', '部屋の隅に、お菓子専用の棚ができている', '部屋のあちこちに、お菓子の箱が積まれている'] },
       clothes:{ by: 'clothes', label: '服', text: ['椅子に掛かった服のタグは「{size}」'] }
     },
+    // E3 風邪の看病
+    sick: { chance: 0.008, days: 3, cooldown: 60, recoverDays: 3, recoverEat: 1.3, menu: [
+      { id: 'okayu', name: 'おかゆ', kcal: 300, price: 200 }, { id: 'pudding', name: 'プリン', kcal: 250, price: 180 }, { id: 'drink', name: 'スポーツドリンク', kcal: 100, price: 150 } ] },
+    // E8 デカ盛り食堂の挑戦（full＝満腹ゲージで必要な量、失敗は¥3,000）
+    challenge: { price: 3000, menus: [ { name: 'メガ盛り', kcal: 3000, full: 70 }, { name: 'ギガ盛り', kcal: 4500, full: 100 }, { name: 'テラ盛り', kcal: 6500, full: 140 } ], bonus: [0, 0, 0, 0.2, 0.5, 1.0] },
+    // E13 ホワイトデーのお返し
+    whitedayGifts: [
+      { id: 'hand', name: '手作りのお菓子', price: 1000, aff: 5, habit: 0 },
+      { id: 'choco', name: '高級チョコの詰め合わせ', price: 3000, kcal: 1200, aff: 4, habit: 0 },
+      { id: 'triple', name: '「3倍返し」（チョコ・マカロン・ケーキの山）', price: 6000, kcal: 3600, aff: 6, habit: 0.03 }
+    ],
     eatTalkChance: 0.35,        // 部屋で「話す」とき、食べる量の区分のセリフ（scenes/eat）になる確率
     eatGiftChance: 0.7,         // 差し入れを受け取ったあと、区分のセリフを足す確率
 
@@ -326,6 +338,7 @@ window.GAME_DATA = {
     { id: 'izakaya',  name: '居酒屋',           price: 3500,  kcal: 1600, full: 46, affection: 6,  habit: 0.03, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'alcohol' },
     { id: 'cakebuf',  name: 'ケーキバイキング', price: 3200,  kcal: 2300, full: 52, affection: 6,  habit: 0.05, slots: ['昼', '夕'],       bg: 'famires',  likeTag: 'sweet' },
     { id: 'yakiniku', name: '焼肉食べ放題',     price: 4500,  kcal: 2600, full: 66, affection: 7,  habit: 0.05, slots: ['夕', '夜'],       bg: 'izakaya',  likeTag: 'fried' },
+    { id: 'dekamori', name: 'デカ盛り食堂（挑戦）', price: 0, kcal: 0, full: 0, affection: 5, habit: 0.05, slots: ['昼', '夕'], bg: 'teishoku', likeTag: 'meal', challenge: true },
     { id: 'french',   name: 'フレンチのコース', price: 12000, kcal: 1500, full: 40, affection: 10, habit: 0.02, slots: ['夜'],             bg: 'teishoku', likeTag: 'sweet' }
   ],
 
@@ -458,6 +471,67 @@ window.GAME_DATA = {
     { if: { minStage: 13 }, msg: '見て見て、今日の夜食', photo: 'ピザLサイズと唐揚げ', replies: [{ text: 'いい食べっぷり', aff: 1, res: 'ふふん。〇〇のせいで、胃袋が大きくなったんだからね' }, { text: '明日はもっとすごいの持っていくね', aff: 1, habit: 0.01, res: '…楽しみにしてる。ほんとに' }] },
     { if: { captured: true }, msg: '…今、なにしてる？ ちょっと声が聞きたくなっただけ', photo: '', replies: [{ text: '会いに行こうか', aff: 2, res: '…うん。おなかもすいたし' }, { text: '夜食、持っていくね', aff: 1, habit: 0.01, res: 'やった。待ってる' }] }
   ],
+  // 共通のシーン（v1.8）。キャラごとのシーン（scenes/extra などの同じ type）が無いときに使う。セリフはヒロイン、'（…）'は地の文
+  commonScenes: [
+    { id: 'c_floor', type: 'floor', nodes: {
+      start: { say: ['（部屋に一歩入ったとたん、床が「みしっ」と大きく鳴った）', '（{name}の顔が、みるみる赤くなっていく）', '…い、今の、聞こえた？'],
+        choices: [
+          { text: '（すぐに補強します）', if: { maxStage: 12 }, money: -20000, building: 5, aff: 3, setFlag: 'floor_fixed', say: ['…ありがとう。古い建物だもんね。…古いせい、だよね？'] },
+          { text: '（すぐに補強します）', if: { minStage: 13 }, money: -30000, building: 5, aff: 3, setFlag: 'floor_fixed', say: ['…ありがとう。…前より、しっかり補強してね'] },
+          { text: '古い建物ですから', aff: 1, setFlag: 'floor_unfixed', say: ['…そう、だよね。うん、建物のせい'] },
+          { text: '（からかう）', aff: -3, wary: 10, say: ['…最っ低。出てって'] }
+        ] } } },
+    { id: 'c_floor100', type: 'floor100', nodes: {
+      start: { say: ['（{name}が座布団から立ち上がった瞬間、畳がずぶりと沈んだ）', '…ねえ。畳、へこんでない？'],
+        choices: [
+          { text: '（畳ごと替えます）', money: -30000, building: 5, aff: 3, setFlag: 'floor_fixed', say: ['…ごめんね、お金かけさせちゃって。…でも、ありがとう'] },
+          { text: '畳も古いので', aff: 1, setFlag: 'floor_unfixed', say: ['…やさしいね。そういうことに、しておく'] }
+        ] } } },
+    { id: 'c_sick', type: 'sick', nodes: {
+      start: { say: ['（布団の中で、{name}がマスク越しに咳きこんでいる）', '…ごめん、こんな格好で。来てくれたんだ'],
+        choices: [
+          { text: '何か食べられそう？', say: ['…ちょっとなら。…ううん、けっこう食べられるかも'] },
+          { text: 'ゆっくり休んでください', say: ['…うん。…そばにいてくれると、安心する'] }
+        ] } } },
+    { id: 'c_recover', type: 'recover', nodes: {
+      start: { say: ['（すっかり元気になった{name}が、冷蔵庫をのぞきこんでいる）', '治ったら、もう、お腹すいちゃって。…寝てたぶん、取り戻さなきゃ'] } } },
+    { id: 'c_delivery', type: 'delivery', nodes: {
+      start: { say: ['（ドアの前で、配達員とはち合わせた。手には、Lサイズのピザの箱が2枚）', '（ドアが開いて、{name}が固まった）', '…あ。…見た？'],
+        choices: [
+          { text: '一緒に食べてもいいですか', aff: 2, say: ['…うん。ひとりで食べきるつもりだったけど、ないしょね'] },
+          { text: '（見なかったことにする）', aff: 1, say: ['（ドアの向こうで、箱を開ける音がした）'] },
+          { text: '頼みすぎじゃないですか？', next: 'too' }
+        ] },
+      too: { branch: [{ if: { minStage: 13 }, next: 'too13' }, { next: 'too0' }] },
+      too0: { aff: -2, say: ['た、頼みすぎじゃないし！ 明日の分も入ってるの！'] },
+      too13: { say: ['え？ いつもこれくらいだよ？'] } } },
+    { id: 'c_old1', type: 'oldClothes1', nodes: {
+      start: { say: ['（押し入れの整理をしていた{name}が、卒業アルバムを広げている）', '…見て、これ。高校のときの'],
+        choices: [
+          { text: '（写真と今の姿を見比べる）', say: ['（観察眼で見ると、写真の頃より{gain}kgほど増えている）', '…ちょっと。じろじろ見ないで'] },
+          { text: 'かわいいですね', aff: 2, say: ['…今と、どっちが？ …答えなくていい'] }
+        ] } } },
+    { id: 'c_old2', type: 'oldClothes2', nodes: {
+      start: { say: ['（{name}が、ハンガーに掛けた昔の制服とにらめっこしている）', '…着てみたの。前が、閉まらなかった'],
+        choices: [
+          { text: '今のほうが似合う服、ありますよ', aff: 3, say: ['…そう言うと思った。…ほんと、ずるい'] },
+          { text: '（何も言わずに、お菓子を差し出す）', aff: 1, habit: 0.02, say: ['…それ、今いちばんダメなやつ。…いただきます'] }
+        ] } } },
+    { id: 'c_old3', type: 'oldClothes3', nodes: {
+      start: { say: ['（昔の服をまとめて紙袋に詰めた{name}が、さっぱりした顔をしている）', 'もう入らないし、全部しまっちゃった。…今の体の服のほうが、好きだし'] } } },
+    { id: 'c_fav', type: 'favClothes', nodes: {
+      start: { say: ['（{name}が、大事そうにワンピースを抱えている）', 'これね、いちばんお気に入りだったの。…背中のファスナー、上がらなかった'],
+        choices: [
+          { text: '直してもらいましょう', aff: 2, say: ['…直せるかな。…ううん、新しいのにする。〇〇といっしょに選ぶ'] },
+          { text: 'それだけおいしいもの食べたってことです', aff: 1, say: ['…あなたのせいでしょ。ほんとに'] }
+        ] } } },
+    { id: 'c_dress', type: 'partyDress', nodes: {
+      start: { say: ['（{name}が、ドレスを体に当てて鏡の前に立っている）', '…来週、友だちの結婚式なのに。これ、もう入らないの'],
+        choices: [
+          { text: '一緒に買いに行きましょう', money: -8000, aff: 4, say: ['（駅前の店で、今の体に合うドレスを一緒に選んだ）', '…これなら、胸を張って出られる。ありがとう'] },
+          { text: '今のほうが似合うドレスがありますよ', aff: 3, say: ['…ほんとに？ …じゃあ、探してみる'] }
+        ] } } }
+  ],
   commonLines: {
     // v1.6：キャラごとの extra に無いときの予備
     party: ['いただきます！', 'みんなで食べると、おいしいね', 'おかわり、ある？'],
@@ -472,6 +546,9 @@ window.GAME_DATA = {
     bored: ['…またこれ？ いや、おいしいけど', 'これ、最近ちょっと続いてるかも'],
     hooked: ['これ、クセになっちゃった…', 'ねえ、またこれ持ってきて。…好きになっちゃったの'],
     keepOn: ['…この体のままで、いいの？ ふふ、わかった'],
+    challengeWin: ['…食べきっちゃった。写真、撮られちゃった…', 'まだいけるけど？ …次のメニュー、気になる'],
+    challengeLose: ['…ギブ。もう一口も入らない…', 'くやしい…次は、ぜったい食べきる'],
+    whiteday: ['お返し、ちゃんと覚えててくれたんだ', '…ありがとう。大事に食べる。…すぐ食べちゃうけど'],
     orderOk: ['ちゃんと持ってきたじゃん。…ほめてあげる'],
     focusGift: ['そこに置いといて。今、手が離せないの'],
     offering: ['おさがり、ありがたくいただきました'],
