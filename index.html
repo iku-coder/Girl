@@ -1149,9 +1149,13 @@ function doorNight(h, st, rep) {
   const bad = f.tags.some(t => isDislike(h, st, t)) && !favorable(st), like = f.tags.some(t => isLike(h, st, t));
   if (bad) { addAff(h, DG.dislike); f.tags.forEach(t => { if (isDislike(h, st, t)) st.known[t] = 'dislike'; }); rep.events.push(`${h.name}のドアに掛けた${f.name}は、ゴミ置き場に出されていた。…苦手だったらしい。`); }
   else {
+    // 食生活の区分（食習慣・満腹の上限）も、手渡しの差し入れと同じに数える（v2.2）
+    const tr = eatTrack(h, st, f.id), kcal = Math.round(f.kcal * giftMul(h, st, f) * (tr === 'bored' ? 0.8 : 1));
     const room = Math.max(0, st.cap - st.full), eat = Math.min(f.full, room);
-    st.intake += f.kcal * (f.full ? eat / f.full : 1); st.full += eat; st.habit = clamp(st.habit + C.habitPerGift / 2, 0, 1);
-    if (f.full > eat) st.doorCarry = { kcal: f.kcal * (f.full - eat) / f.full, full: f.full - eat };
+    if (f.full > room && st.full >= st.cap * .7) st.cap = Math.min(C.maxCapacity, st.cap + C.stretchOnRefuse);   // 入りきらないほど食べて、胃袋が広がる
+    st.intake += kcal * (f.full ? eat / f.full : 1); st.full += eat; st.gifts++; st.habit = clamp(st.habit + C.habitPerGift, 0, 1);
+    (st.tagsToday = st.tagsToday || []).push(...f.tags);
+    if (f.full > eat) st.doorCarry = { kcal: kcal * (f.full - eat) / f.full, full: f.full - eat };
     if (like) addAff(h, DG.like); else if (DG.normal) addAff(h, DG.normal);
     rep.events.push(`${h.name}のドアに掛けた${f.name}は、なくなっていた。${like ? '（好物だったらしい）' : ''}`);
   }
