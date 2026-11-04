@@ -1736,7 +1736,7 @@ function render() {
     <div class="pips">${C.slots.map((s, i) => `<span class="pip ${i === S.slot ? 'now' : i < S.slot ? 'past' : ''}">${s}</span>`).join('')}</div>
     <div class="money num">${yen(S.money)}</div><button class="icon" data-act="menu" aria-label="メニュー">≡</button>`;
   const v = S.view;
-  main.innerHTML = v.type === 'self' ? selfHTML() : v.type === 'room' ? roomHTML(H[v.id]) : mapHTML();
+  { const y = main.scrollTop; main.innerHTML = v.type === 'self' ? selfHTML() : v.type === 'room' ? roomHTML(H[v.id]) : mapHTML(); main.scrollTop = y; }   // 同じ画面ならスクロール位置を保つ
   // 画面が切り替わったら：いちばん上（立ち絵が見える位置）から表示し、前の画面の立ち絵は消す
   const vk = v.type + ':' + (v.id || '');
   if (vk !== lastViewKey) { lastViewKey = vk; main.scrollTop = 0; dropStaleFigure(); }
@@ -2023,9 +2023,11 @@ function roomHTML(h) {
 
 /* ---------- modal ---------- */
 function openModal(kind, html) {
+  const m = $('#modal'), same = !m.hidden && modalKind === kind && m.firstElementChild;
   modalKind = kind;
-  const m = $('#modal');
-  m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  // 同じ画面を描き直すとき（買う・選ぶなど）は、スクロールの位置をそのままにする
+  if (same) { const sh = m.firstElementChild, y = sh.scrollTop; sh.innerHTML = html; sh.scrollTop = y; }
+  else m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
   m.hidden = false;
 }
 function closeModal() {
