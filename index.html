@@ -489,6 +489,25 @@ window.EXTRA = {}; window.addExtra = (id, o) => { const e = window.EXTRA[id] = w
 <script src="scenes/life6/rin.js"></script>
 <script src="scenes/life6/karen.js"></script>
 <script src="scenes/life6/himeka.js"></script>
+<script src="scenes/v19/hinata.js"></script>
+<script src="scenes/v19/saya.js"></script>
+<script src="scenes/v19/reina.js"></script>
+<script src="scenes/v19/sayuri.js"></script>
+<script src="scenes/v19/akane.js"></script>
+<script src="scenes/v19/kotori.js"></script>
+<script src="scenes/v19/yukino.js"></script>
+<script src="scenes/v19/rio.js"></script>
+<script src="scenes/v19/rei.js"></script>
+<script src="scenes/v19/shiori.js"></script>
+<script src="scenes/v19/aoi.js"></script>
+<script src="scenes/v19/mariko.js"></script>
+<script src="scenes/v19/sumire.js"></script>
+<script src="scenes/v19/mio.js"></script>
+<script src="scenes/v19/nagisa.js"></script>
+<script src="scenes/v19/chihaya.js"></script>
+<script src="scenes/v19/rin.js"></script>
+<script src="scenes/v19/karen.js"></script>
+<script src="scenes/v19/himeka.js"></script>
 <script>
 (() => {
 'use strict';
@@ -1345,7 +1364,9 @@ function sceneBg(kind) {
     // 出先（背景絵_一覧とプロンプト v1.1 の候補 D1・D2・D3・D5 の名前。絵が無いあいだは代わりの色で表示）
     town: [time === 'noon' ? 'town_shotengai_noon' : 'town_station_' + time, 'ext', time],
     campus: ['univ_campus_' + (time === 'evening' || time === 'night' ? 'evening' : 'noon'), 'ext', time],
-    supermarket: ['town_conveni_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time]
+    supermarket: ['town_conveni_' + (time === 'morning' || time === 'noon' ? 'noon' : 'night'), 'shop', time],
+    sento: ['town_sento_' + (time === 'night' ? 'night' : 'evening'), 'ext', time],
+    shrine: ['shrine_' + (time === 'night' ? 'evening' : time === 'evening' ? 'evening' : 'noon'), 'ext', time]
   };
   S.sceneBg = map[kind] || null; updateBg();
 }
@@ -2268,7 +2289,7 @@ const ACT = {
     if (i >= 0) s.splice(i, 1); else { if (s.length >= max) s.shift(); s.push(d.id); } openModal('sento', sentoHTML()); },
   sentoGo() {
     const hs = (S.sentoSel || []).map(id => H[id]); S.sentoSel = []; closeModal(); if (!hs.length || S.money < C.sento.price) return;
-    S.money -= C.sento.price * (hs.length > 1 ? 1.5 : 1); S.sentoDay = S.day; sceneBg('town');
+    S.money -= C.sento.price * (hs.length > 1 ? 1.5 : 1); S.sentoDay = S.day; sceneBg('sento');
     withCast(hs.length > 1 ? hs.map(h => h.id) : null, () => {
       hs.forEach(h => { const st = S.h[h.id]; S.ctxKg = Math.floor(st.weight / 5) * 5; st.intake += C.sento.kcal; addAff(h, C.sento.affection); if (!tryScene(h, 'sento')) speak(h, 'sento'); });
     });
@@ -2411,7 +2432,7 @@ const ACT = {
     const h = H.chihaya, st = S.h.chihaya, f = FOOD[d.id]; if (!h || !st || !S.inv[d.id]) return;
     closeModal(); S.inv[d.id]--; if (!S.inv[d.id]) delete S.inv[d.id];
     st.intake += f.kcal; st.habit = clamp(st.habit + 0.01, 0, 1); addAff(h, 1); SPX().offerDay = S.day;
-    sceneBg('town'); narr(`（陽守神社の拝殿に、${f.name}をお供えした）`);
+    sceneBg('shrine'); narr(`（陽守神社の拝殿に、${f.name}をお供えした）`);
     narr(`（しばらくして、社務所の奥から千早が出てきた）`); speak(h, 'offering');
     advanceSlot();
   },
@@ -2542,6 +2563,7 @@ const ACT = {
     if (h.id === 'himeka') syncRoute();
     // キャラ専用（優先）。どれか1つ出たら、ふつうのあいさつは出さない
     const special = (() => {
+      if (h.id === 'himeka' && st.stage >= 13 && !st.route && pickScene(h, 'route')) { tryScene(h, 'route'); return true; }   // ルート分岐を最優先
       // E1 床のきしみ（ひだまり荘だけ）
       if (bldOf(h) === 'apartment') {
         const fl = flagsOf(h);

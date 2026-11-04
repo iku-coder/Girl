@@ -9,13 +9,18 @@ let bad = 0;
 const err = (f, m) => { bad++; console.log(`NG ${f}: ${m}`); };
 for (const f of process.argv.slice(2)) {
   const calls = [];
-  const extras = [];
-  global.window = { addScenes: (id, list, extra) => calls.push({ id, list, extra }), addExtra: (id, o) => extras.push({ id, o }) };
+  const extras = [], phones = [];
+  global.window = { addScenes: (id, list, extra) => calls.push({ id, list, extra }), addExtra: (id, o) => extras.push({ id, o }), addPhone: (id, list) => phones.push({ id, list }) };
   try { new Function('window', fs.readFileSync(f, 'utf8'))(global.window); } catch (e) { err(f, '構文エラー ' + e.message); continue; }
   extras.forEach(({ id, o }) => {
     if (o.birthday != null && !/^\d\d-\d\d$/.test(o.birthday)) err(f, `addExtra ${id}: birthday は 'MM-DD'`);
     Object.entries(o.lines || {}).forEach(([k, v]) => { if (!Array.isArray(v) || !v.length || v.some(x => typeof x !== 'string' && !(Array.isArray(x) && x.every(y => typeof y === 'string')))) err(f, `addExtra ${id}: lines.${k} は文字列の配列（または段階ごとの配列）`); });
   });
+  phones.forEach(({ id, list }) => (list || []).forEach((m, i) => {
+    if (typeof m.msg !== 'string' || !Array.isArray(m.replies) || m.replies.length < 2) err(f, `addPhone ${id}[${i}]: msg と replies（2つ）が必要`);
+    (m.replies || []).forEach(r => { if (typeof r.text !== 'string' || typeof r.res !== 'string') err(f, `addPhone ${id}[${i}]: replies は { text, res, aff, habit }`); });
+    if (m.if) Object.keys(m.if).forEach(k => { if (!COND.includes(k)) err(f, `addPhone ${id}[${i}]: 条件キーが不正 ${k}`); });
+  }));
   if (!calls.length) { err(f, 'window.addScenes が呼ばれていない'); continue; }
   for (const { id, list, extra } of calls) {
     const ids = new Set(); const counts = {};
