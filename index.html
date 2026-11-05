@@ -261,6 +261,16 @@ window.EXTRA = {}; window.addExtra = (id, o) => { const e = window.EXTRA[id] = w
 <!-- 桃瀬母娘（v2.4・ひだまりレジデンス204） -->
 <script src="scenes/hero/haruka.js"></script>
 <script src="scenes/hero/anzu.js"></script>
+<!-- 外のヒロインと住人がそろうイベント（v2.5） -->
+<script src="scenes/pair/satsuki.js"></script>
+<script src="scenes/pair/mao.js"></script>
+<script src="scenes/pair/komachi.js"></script>
+<script src="scenes/pair/madoka.js"></script>
+<script src="scenes/pair/kaho.js"></script>
+<script src="scenes/pair/koharu.js"></script>
+<script src="scenes/pair/kyoko.js"></script>
+<script src="scenes/pair/misuzu.js"></script>
+<script src="scenes/pair/yuko.js"></script>
 <script src="scenes/_intro.js"></script>
 <script src="scenes/reina.js"></script>
 <script src="scenes/sayuri.js"></script>
@@ -1227,15 +1237,27 @@ function meetOut(h) {
       });
       S.view = { type: 'self' }; advanceSlot(); return;
     } }
-  if (canVisit(st)) { S.view = { type: 'room', id: h.id }; st.visits = (st.visits || 0) + 1; sfx('door'); narr(`（${P.label}で、${h.name}に会った）`); if (!tryScene(h, 'meetOut')) speak(h, 'greet'); render(); return; }
+  if (canVisit(st)) { S.view = { type: 'room', id: h.id }; st.visits = (st.visits || 0) + 1; sfx('door'); narr(`（${P.label}で、${h.name}に会った）`); if (!outPairTry(h) && !tryScene(h, 'meetOut')) speak(h, 'greet'); render(); return; }
   meetOutAuto(h); S.view = { type: 'self' }; advanceSlot();
+}
+// 外のヒロインと住人がそろうイベント（v2.5）
+function outPairTry(h, force) {
+  const O = C.outside || {}, pr = (O.pairs || []).find(x => x.out === h.id); if (!pr) return false;
+  const r = H[pr.res], rs = r && S.h[r.id], st = S.h[h.id]; if (!r || !active(r) || !rs || !rs.met || rs.aff < 35 || rs.sick || (rs.away && S.day <= rs.away.until)) return false;
+  if (S.day - (st.pairDay == null ? -999 : st.pairDay) < (O.pairCooldown || 10) || (!force && Math.random() >= (O.pairChance || 0.35))) return false;
+  const fl = flagsOf(h); if (fl.includes('op_' + h.id + '_2') && rs.stage < 5) return false;   // 3段目は住人が太ってから
+  if (!withCastTry([h.id, r.id], h, 'outPair')) return false;
+  st.pairDay = S.day;
+  [h, r].forEach(x => { const xs = S.h[x.id]; xs.intake += O.pairKcal || 600; xs.habit = clamp(xs.habit + 0.01, 0, 1); addAff(x, O.pairAffection || 2); });
+  pairAdd(h.id, r.id, 3);
+  return true;
 }
 function meetOutAuto(h) {   // 時間を進めない、短い出会い（バイト・配達・朝の郵便・35未満の人に会いに行ったとき）
   const st = S.h[h.id], P = outPlace(h); if (!P || !present(h) && P.outing || st.meetDay === S.day) return;
   st.meetDay = S.day;   // 同じ人と会うのは1日1回
   st.outMeets = (st.outMeets || 0) + 1;
   narr(`（${P.label}で、${h.name}に会った）`);
-  if (!tryScene(h, 'meetOut')) speak(h, 'greetOut');
+  if (!outPairTry(h) && !tryScene(h, 'meetOut')) speak(h, 'greetOut');
   addAff(h, (C.outside || {}).meetAffection || 3);
   if (outFoodOk(h, st)) {
     const F = outFoodOf(h);
@@ -3431,7 +3453,7 @@ const ACT = {
     narr(`ファミレスでバイトをした。${yen(C.partTimePay)} を受け取った。`);
     if (slotName() === '夕' && C.jobLeftovers) { const f = FOOD[pick(C.jobLeftovers.foods)]; if (f) { S.inv[f.id] = (S.inv[f.id] || 0) + 1; narr(`（店長に「余っちゃったから持ってって」と、${f.name}を持たされた。差し入れに使える）`); } }
     S.jobWeek = (S.jobWeek || 0) + 1;   // 真央の人手不足（週ごと）
-    { const k = outAt('job')[0]; if (k) meetOutAuto(k); else encounter('job') || encounter('town'); }   // バイト先の店長（外のヒロイン）
+    { const k = outAt('job')[0]; if (k) { if (S.maoBinge > S.day && outPairTry(k, true)) { S.h[k.id].meetDay = S.day; } else meetOutAuto(k); } else encounter('job') || encounter('town'); }   // 人手不足の週は、住人が手伝いに来る   // バイト先の店長（外のヒロイン）
     advanceSlot();
   },
   manage() {

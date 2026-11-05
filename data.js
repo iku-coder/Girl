@@ -375,6 +375,20 @@ window.GAME_DATA = {
       cleanup: { day: 0, kcal: 1200, building: 5, affection: 3 },    // 京子：毎月最初の日曜は町内の一斉清掃と炊き出し（集会所）
       bargain: { from: '12-27', to: '12-30', chance: 0.5 },          // 美鈴と玲奈：年末の大売り出しの手伝い（スーパー、2人とも親密度35以上）
       gossipCost: 0,                                                  // 夕子：住人の最近の買い物を教えてもらう（1日1回、親密度35以上）
+      // 外のヒロインと住人がそろうイベント（v2.5）。外のヒロインに会ったとき、相手の住人と顔なじみ（35）以上なら chance で。シーン type 'outPair'（scenes/pair/<外のヒロイン>.js）
+      //   シーンは3段：1回目（op_<id>_1 が立つ）→ 2回目（op_<id>_2）→ 3回目以降（住人が段階5以上のとき。くり返し出る）。同じ組は cooldown 日あける
+      pairs: [
+        { out: 'satsuki', res: 'chihaya', where: '神社の仕事' },
+        { out: 'komachi', res: 'saya',    where: '銭湯の朝風呂' },
+        { out: 'madoka',  res: 'haruka',  where: 'デパ地下の常連' },
+        { out: 'misuzu',  res: 'reina',   where: 'スーパーの惣菜コーナー' },
+        { out: 'yuko',    res: 'hinata',  where: 'コンビニの新作スイーツ' },
+        { out: 'mao',     res: 'akane',   where: '人手不足のファミレスを手伝う' },
+        { out: 'kaho',    res: 'sumire',  where: '大量のお取り寄せの荷物' },
+        { out: 'koharu',  res: 'shiori',  where: '海外からのエアメール' },
+        { out: 'kyoko',   res: 'sayuri',  where: '町内会の炊き出し' }
+      ],
+      pairChance: 0.35, pairCooldown: 10, pairKcal: 600, pairAffection: 2,
       unlockMeets: 3,                                                 // バイト・配達・買い出しなどで3回会うと顔見知りになり、「ヒロインに会いに行く」から会える
       shopChance: 0.5,                                                // 買い出し・お参りのとき、その店・神社の人に会う確率
       postChance: 0.35,                            // 平日の朝の掃除で、郵便配達に会う確率
