@@ -1560,7 +1560,7 @@ function night(silent) {
     doorNight(h, st, rep);   // F1 ドアノブの差し入れ
     if (h.id === 'mao' && S.maoBinge > S.day) st.intake += (C.outside.maoWeek || {}).binge || 0;   // 人手不足のまとめ食い
     if (h.dailyKcal && st.met && !(st.away && S.day <= st.away.until)) st.intake += h.dailyKcal;   // 外のヒロイン：常連さんの差し入れなど（v2.3）
-    if (!st.diet && !(st.away && S.day <= st.away.until)) { if (hasFac('vending') && bldOf(h) === 'apartment') st.intake += C.vending.kcal; st.intake += townSnack(h, st); }   // F5
+    if (!st.diet && !(st.away && S.day <= st.away.until)) { if (hasFac('vending') && bldOf(h) === 'apartment') st.intake += C.vending.kcalChoices ? pick(C.vending.kcalChoices) : C.vending.kcal; st.intake += townSnack(h, st); }   // 自販機は飲むものによって変わる（デバッグ 11/6）   // F5
     // ダイエットとリバウンド
     dietStopCheck(h, st);
     if (st.diet && S.day >= st.diet.until) endDiet(h, st, true);
@@ -2068,8 +2068,10 @@ function figure(h, st) {
     <circle cx="${cx}" cy="52" r="${face}" fill="${c}"/></svg>`;
 }
 // 立ち絵のパス。ルート（姫華）で差し替え、公開版は軽い形式（window.IMAGE_EXT）に置き換える
+// 立ち絵がまだそろっていない段階は、いちばん近い下の段階の絵を使う
+const nearImg = (imgs, n) => { if (!imgs) return undefined; for (let k = n; k >= 1; k--) if (imgs[k]) return imgs[k]; return undefined; };
 function imageOf(h, st) {
-  let src = h.images && h.images[st.stage];
+  let src = nearImg(h.images, st.stage);
   if (h.routes && st.route && st.stage >= (h.routes.fromStage || 1) && h.routes[st.route] && h.routes[st.route][st.stage]) src = h.routes[st.route][st.stage];
   if (src && window.IMAGE_EXT) src = src.replace(/\.png$/, window.IMAGE_EXT);
   return src;
@@ -2340,9 +2342,10 @@ function nightHTML(rep) {
     <button class="btn primary close" data-act="close">朝になる</button>`;
 }
 // 住人一覧：会ったことのあるヒロインだけ、親密度つきで
+const BLD_ORDER = { apartment: 0, mansion: 1, outside: 2 };
 function rosterHTML() {
   const list = D.heroines.filter(h => active(h) && S.h[h.id].met)
-    .sort((a, b) => (bldOf(a) === bldOf(b) ? a.room.localeCompare(b.room) : bldOf(a) === 'apartment' ? -1 : 1));
+    .sort((a, b) => ((BLD_ORDER[bldOf(a)] ?? 9) - (BLD_ORDER[bldOf(b)] ?? 9)) || String(a.room || a.place || '').localeCompare(String(b.room || b.place || '')));   // 外のヒロインは room が無い（デバッグ 11/5）
   const rows = list.map(h => {
     const st = S.h[h.id], t = tierOf(st.aff), pct = clamp(st.aff / C.captureAffection * 100, 0, 100);
     return `<div class="rrow link" data-act="diaryOpen" data-id="${h.id}"><div class="rname"><b>${st.captured ? '<span class="heart">♥</span>' : ''}${esc(h.name)}</b>
@@ -2417,7 +2420,7 @@ function facHTML() {
     <button class="btn close" data-act="close">閉じる</button>`;
 }
 function imageAt(h, n, st) {
-  let src = h.images && h.images[n];
+  let src = nearImg(h.images, n);
   if (h.routes && st.route && n >= (h.routes.fromStage || 1) && h.routes[st.route] && h.routes[st.route][n]) src = h.routes[st.route][n];
   if (src && window.IMAGE_EXT) src = src.replace(/\.png$/, window.IMAGE_EXT);
   return src || '';

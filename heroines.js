@@ -271,7 +271,7 @@
     height: 160, weight: 50, appetite: 1.0, color: '#7fc4c0',
     likes: ['fried', 'snack'], dislikes: ['sweet'],
     schedule: { weekday: ['朝', '夕', '夜'], weekend: ['昼', '夕', '夜'] },
-    startAffection: 40,
+    startAffection: 35,   // ゲームでは config.startAffection.override で35（データもそろえた）
     bodyType: { frame: 'straight', fat: 'apple' },
     sizes: { bust: 86, under: 68.5, waist: 59, hip: 86 },
     images: imgs('aoi'),

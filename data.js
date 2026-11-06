@@ -34,7 +34,7 @@ window.GAME_DATA = {
     baseEatRatio: 0.97,         // 食習慣0のときの自炊量（維持カロリー比）
     habitEatBonus: 0.5,         // 食習慣1.0で +50% 食べるようになる
     kcalPerKg: 7000,
-    weightGainBoost: 1.2,       // ゲーム用の増量倍率（v0.9で2.5→1.0、v1.5で1.2。増えるときだけ掛かる。減るときは等倍）
+    weightGainBoost: 1.0,       // ゲーム用の増量倍率（v0.9で2.5→1.0、v1.5で1.2、v2.5 で 1.0（デバッグ 11/6・太るスピード調整 案A）。増えるときだけ掛かる。減るときは等倍）
     fatConstitutionPerStage: 0.06, // デブ体質：段階が1上がるごとに増え方が+6%（段階15で×1.84）。v1.5
     habitDecayPerDay: 0.005,
     habitPerGift: 0.01,
@@ -403,7 +403,7 @@ window.GAME_DATA = {
     oburumai: { price: 5000, kcal: 1200, kcalNabe: 1800, habit: 0.02, affection: 1, maxWary: 80,                       // F3 大家のおふるまい（月1回・休日の夕）
       menus: { 4: '花見弁当', 5: '焼きそば', 6: '流しそうめん', 7: 'かき氷とたこ焼き', 8: 'スイカ割りとバーベキュー', 9: '芋煮', 10: '焼き芋', 11: 'おでん', 12: '年越しそば', 1: 'お雑煮と餅', 2: '豚汁', 3: 'ちらし寿司' } },
     handGift: { lowAff: 35, rate: 0.5, rateLike: 0.8, affection: 1, wary: 2, waryNo: 4 },   // F4 朝の挨拶・荷物・家賃での手渡し
-    vending: { kcal: 200 },                                                                  // F5 アパート前の自販機（ひだまり荘の住人の間食）
+    vending: { kcal: 200, kcalChoices: [0, 100, 150, 200] },                                                                  // F5 アパート前の自販機（ひだまり荘の住人の間食）
     townShops: [                                                                             // F5 街の新しい店（決まった日に開店）
       { id: 'bakery',  from: '04-25', name: '駅前のパン屋',             note: '朝はパン、という住人が増えた。', own: 0.05 },
       { id: 'dekamori', from: '06-01', name: '商店街のデカ盛り食堂',      note: '外食に「デカ盛り食堂」が加わった。' },
