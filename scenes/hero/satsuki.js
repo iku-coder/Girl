@@ -18,7 +18,7 @@ window.GAME_DATA.heroines.push({
   startAffection: 10,
   bodyType: { frame: 'wave', fat: 'hidden' },
   sizes: { bust: 80, under: 65, waist: 56, hip: 84 },
-  images: { 1: 'img/satsuki_1.png', 2: 'img/satsuki_2.png', 3: 'img/satsuki_3.png', 4: 'img/satsuki_4.png' },   // 立ち絵（そろっていない段階は、いちばん近い下の段階の絵）
+  images: { 1: 'img/satsuki_1.png', 2: 'img/satsuki_2.png', 3: 'img/satsuki_3.png', 4: 'img/satsuki_4.png', 5: 'img/satsuki_5.png' },   // 立ち絵（そろっていない段階は、いちばん近い下の段階の絵）
   lines: {
     greetOut: [
       ['（竹ぼうきの手を止めて、紗月が目を細めた）…あら、総代さまのお孫さん。ふふ、お参りですか', 'ようこそお参りくださいました。…落ち葉は、掃いても掃いても積もるものですね'],
