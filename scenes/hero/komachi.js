@@ -20,7 +20,7 @@ window.GAME_DATA.heroines.push({
   startAffection: 10,
   bodyType: { frame: 'straight', fat: 'hidden' },
   sizes: { bust: 88, under: 65.5, waist: 60, hip: 88 },
-  images: { 1: 'img/komachi_1.png', 2: 'img/komachi_2.png', 3: 'img/komachi_3.png', 4: 'img/komachi_4.png', 5: 'img/komachi_5.png', 6: 'img/komachi_6.png', 7: 'img/komachi_7.png', 8: 'img/komachi_8.png', 9: 'img/komachi_9.png', 10: 'img/komachi_10.png' },   // 立ち絵（そろっていない段階は、いちばん近い下の段階の絵）
+  images: { 1: 'img/komachi_1.png', 2: 'img/komachi_2.png', 3: 'img/komachi_3.png', 4: 'img/komachi_4.png', 5: 'img/komachi_5.png', 6: 'img/komachi_6.png', 7: 'img/komachi_7.png', 8: 'img/komachi_8.png', 9: 'img/komachi_9.png', 10: 'img/komachi_10.png', 11: 'img/komachi_11.png' },   // 立ち絵（そろっていない段階は、いちばん近い下の段階の絵）
   lines: {
     greetOut: [
       ['（番台から、小町が身を乗り出した）お、大家のにいちゃん！ いらっしゃい！ 大人ひとりね', 'らっしゃい！ 今日は空いてるよ。一番風呂じゃないけど、いいお湯だから'],
