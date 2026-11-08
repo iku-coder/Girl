@@ -18,7 +18,7 @@ window.GAME_DATA.heroines.push({
   startAffection: 10,
   bodyType: { frame: 'wave', fat: 'apple' },
   sizes: { bust: 84, under: 66.5, waist: 56, hip: 82 },
-  images: { 1: 'img/mao_1.png', 2: 'img/mao_2.png', 3: 'img/mao_3.png', 4: 'img/mao_4.png', 5: 'img/mao_5.png', 6: 'img/mao_6.png', 7: 'img/mao_7.png', 8: 'img/mao_8.png', 9: 'img/mao_9.png', 10: 'img/mao_10.png', 11: 'img/mao_11.png', 12: 'img/mao_12.png', 13: 'img/mao_13.png' },   // 立ち絵（そろっていない段階は、いちばん近い下の段階の絵）
+  images: { 1: 'img/mao_1.png', 2: 'img/mao_2.png', 3: 'img/mao_3.png', 4: 'img/mao_4.png', 5: 'img/mao_5.png', 6: 'img/mao_6.png', 7: 'img/mao_7.png', 8: 'img/mao_8.png', 9: 'img/mao_9.png', 10: 'img/mao_10.png', 11: 'img/mao_11.png', 12: 'img/mao_12.png', 13: 'img/mao_13.png', 14: 'img/mao_14.png' },   // 立ち絵（そろっていない段階は、いちばん近い下の段階の絵）
   lines: {
     greetOut: [
       ['ほら、ぼさっとしない！ 3番テーブル、お冷や！', '（インカムに指示を飛ばしながら、真央がこちらをにらんだ）…遅刻じゃないなら、さっさと着替えて'],
