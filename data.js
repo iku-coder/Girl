@@ -310,7 +310,7 @@ window.GAME_DATA = {
     affDailyCap: [3, 2.5, 2, 1],              // ヒロインごとの1日の増加の上限（段階別）
     affCapBonus: 3,                           // 行事・誕生日・ホワイトデー・看病・一度きりの身の上話がある日は上限+3
     affDecay: { days: 5, amount: 1, minTier: 1 },   // 3日続けて会わないと、4日目から毎晩−1（段階の下端より下げない・攻略済みは下がらない）。minTier 1＝よそよそしい段階では下げない（住人19人だと会う機会が足りず、0から抜け出せないため）
-    startAffection: { rate: 0.25, max: 10, override: { aoi: 35 } },   // 初期の親密度＝今の値×0.25（最大10）。葵だけ35
+    startAffection: { rate: 0.25, max: 10, override: { aoi: 35, tsubasa: 30 } },   // 初期の親密度＝今の値×0.25（最大10）。葵だけ35
     // 身体の変化（v2.1・身体の変化 仕様案）。段階のグループ 1〜4／5〜8／9〜12／13〜15 を 0〜3 で表す。文は短く、生々しくしない
     body: {
       items: [
@@ -348,12 +348,14 @@ window.GAME_DATA = {
       hide: '親しくない相手には隠そうとしている（デオドラントを増やす、長袖を着る など）',
       careItems: ['care_cream', 'care_deo', 'care_spats', 'care_mint']
     },
+    // v2.7：春日井 つばさ（104号室。幼なじみ）
+    tsubasa: { gohanChance: 0.6, gohanKcal: 600, cookKcal: 800, mukureRate: 1.5 },   // ごはんまだ？（夕・夜の101号室）・むくれ食い（ほかの人の親密度の段階が上がった日、摂取×1.5）
     // v2.6：建て替え（ひだまりタワー）。ひだまり荘が住人の体重で限界 → レジデンスと土地を担保に奥の土地を買い、15階建てを建てる
     tower: {
       name: 'ひだまりタワー', nameIsTemp: true,
       trigger: { weightSum: 600, floorEvents: 3 },      // ひだまり荘の住人の体重の合計が600kg以上、または床のきしみ（E1）が3回で、建て替えの話になる
       rent: 50000,                                    // 1階に移った元ひだまり荘の住人の家賃（主人公の好意で、これまで＋1万円）
-      rooms: { hinata: '102', reina: '103', akane: '104', saya: '105', yukino: '106', sayuri: '107', kotori: '108' },   // 101は主人公
+      rooms: { hinata: '102', reina: '103', tsubasa: '104', saya: '105', yukino: '106', sayuri: '107', kotori: '108' },   // 101は主人公
       layout: { firstFloor: 10, midFloors: [2, 12], midRooms: 10, family: 5, single: 5, luxuryFloors: [13, 14], luxuryRooms: 3 },
       bg: 'tower_ext_noon'                            // 外観（夕・夜の絵ができるまでは昼の絵）
     },
@@ -399,7 +401,7 @@ window.GAME_DATA = {
         { out: 'madoka',  res: 'haruka',  where: 'デパ地下の常連' },
         { out: 'misuzu',  res: 'reina',   where: 'スーパーの惣菜コーナー' },
         { out: 'yuko',    res: 'hinata',  where: 'コンビニの新作スイーツ' },
-        { out: 'mao',     res: 'akane',   where: '人手不足のファミレスを手伝う' },
+        { out: 'mao',     res: 'tsubasa', where: '人手不足のファミレスを、幼なじみのつばさが手伝う' },
         { out: 'kaho',    res: 'sumire',  where: '大量のお取り寄せの荷物' },
         { out: 'koharu',  res: 'shiori',  where: '海外からのエアメール' },
         { out: 'kyoko',   res: 'sayuri',  where: '町内会の炊き出し' }
@@ -896,7 +898,7 @@ window.GAME_DATA = {
     saya: ['会社の同僚', '静岡の妹', '銭湯の常連さん'],
     reina: ['スーパーのパート仲間', '保育園のママ友', '居酒屋の店長'],
     sayuri: ['お弁当屋さんの常連さん', '商店街のおかみさんたち', '娘の同級生のお母さん'],
-    akane: ['ジムの会員さん', 'ママさんバレーのチーム', '元チームメイト'],
+    tsubasa: ['フットサルサークルの仲間', 'コンビニの夜勤仲間', '実家の近所の人'],
     kotori: ['メイド喫茶の常連さん', '配信の視聴者', '元アイドル仲間'],
     yukino: ['大学のミスコン実行委員', '家庭教師先の子ども', 'モデル事務所のマネージャー'],
     rio: ['栄養学部の同級生', 'ジムのインストラクター', 'ひなた先輩'],

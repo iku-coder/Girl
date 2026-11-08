@@ -70,21 +70,6 @@ window.addScenes('sayuri', [
   } }
 ]);
 
-window.addScenes('akane', [
-  { id: 'akane_intro', type: 'intro', nodes: {
-    start: { say: ['（背の高い、赤茶色のベリーショートの女性が出てきた）', 'うっす！…お、見ない顔っすね'],
-      choices: [
-        { text: '新しい管理人です。祖父の跡を継ぎました', next: 'heir' }
-      ] },
-    heir: { say: ['…そっか。大家さん、亡くなったんすね', '（深く頭を下げた）', 'ご愁傷さまです。自分、大家さんには引っ越しのとき、すげー世話になったんすよ'],
-      choices: [
-        { text: '何かあったら言ってください', aff: 1, say: ['それはこっちのセリフっす。重いもんとか、大掃除とか、遠慮なく言ってほしいっす'], next: 'rent' },
-        { text: '背、高いですね', aff: -1, say: ['…よく言われるっす。175っす', '（少しだけ、困ったように笑った）'], next: 'rent' }
-      ] },
-    rent: { say: ['これ、4月分っす。104号室の鷹野茜っす。よろしくっす、管理人くん！'] }
-  } }
-]);
-
 window.addScenes('kotori', [
   { id: 'kotori_intro', type: 'intro', nodes: {
     start: { say: ['（赤いツインテールの女の子が、とびきりの笑顔で出てきた）', 'はーい♡ …あれ？どなたですかぁ？'],
