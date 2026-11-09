@@ -310,7 +310,7 @@ window.GAME_DATA = {
     affDailyCap: [3, 2.5, 2, 1],              // ヒロインごとの1日の増加の上限（段階別）
     affCapBonus: 3,                           // 行事・誕生日・ホワイトデー・看病・一度きりの身の上話がある日は上限+3
     affDecay: { days: 5, amount: 1, minTier: 1 },   // 3日続けて会わないと、4日目から毎晩−1（段階の下端より下げない・攻略済みは下がらない）。minTier 1＝よそよそしい段階では下げない（住人19人だと会う機会が足りず、0から抜け出せないため）
-    startAffection: { rate: 0.25, max: 10, override: { aoi: 35, tsubasa: 30 } },   // 初期の親密度＝今の値×0.25（最大10）。葵だけ35
+    startAffection: { rate: 0.25, max: 10, override: { tsubasa: 30 } },   // 初期の親密度＝今の値×0.25（最大10）。幼なじみのつばさだけ30（葵は v4.11 で幼なじみでなくなった）
     // 身体の変化（v2.1・身体の変化 仕様案）。段階のグループ 1〜4／5〜8／9〜12／13〜15 を 0〜3 で表す。文は短く、生々しくしない
     body: {
       items: [
@@ -349,14 +349,63 @@ window.GAME_DATA = {
       careItems: ['care_cream', 'care_deo', 'care_spats', 'care_mint']
     },
     // v2.7：春日井 つばさ（104号室。幼なじみ）
+    // v2.8 攻略後の楽しみ（claude/攻略後と遊びやすさ_仕様案.md）
+    after: {
+      cookForMe: { visitChance: 0.2, restChance: 0.15, everyDays: 7, tasteRate: 0.5, praiseUp: 1.2, praiseMax: 2, together: 1.3,
+        skill: { good: { kcal: [1500, 2500], dish: '豪華な一品' }, normal: { kcal: [1200, 1200], dish: '定番の家庭料理' }, bad: { kcal: [2000, 2000], dish: '出前のピザとお寿司', price: 3000 } } },
+      aikagi: { days: 30, invites: 5 },
+      stay: { chance: 0.4, raidSnack: 400, beg: 0.5, begKcal: 700 },
+      live: { days: 60, cost: 1000, breakfast: [600, 1200], dinner: [1000, 2500], noLive: ['shiori'] }
+    },
+    dates: { slot: '昼', perWeek: 1, affection: 4, habit: 0.03, stretch: 2, spots: [
+      { id: 'shotengai', name: '下町の商店街', price: 2500, bg: 'shotengai', stops: [['コロッケ', 'メンチカツ', '焼き鳥'], ['たい焼き', '今川焼き', '豆大福'], ['もんじゃ焼き', 'お好み焼き']], kcal: 600 },
+      { id: 'chinatown', name: '中華街', price: 5000, bg: 'shotengai', stops: [['肉まん', '焼き小籠包', 'ごま団子'], ['小籠包', '北京ダックの包み', '胡麻団子'], ['食べ放題の中華', '海鮮おこげ', '大盛りチャーハン']], kcal: 930, far: true },
+      { id: 'harajuku', name: '原宿・表参道のスイーツ巡り', price: 6000, bg: 'shotengai', stops: [['クレープ', 'わたあめ', 'チーズハットグ'], ['パンケーキ', 'フレンチトースト'], ['パフェ', 'かき氷', 'タピオカミルクティー']], kcal: 870 },
+      { id: 'tsukiji', name: '築地の場外', price: 7000, bg: 'shotengai', stops: [['卵焼き', 'まぐろ串', '焼きがき'], ['海鮮丼', 'うに丼', 'いくら丼'], ['まぐろ串と焼きがき', '天ぷら', 'あら汁']], kcal: 730, far: true },
+      { id: 'asakusa', name: '浅草の縁日', price: 3000, bg: 'shotengai', stops: [['焼きそば', 'たこ焼き', 'フランクフルト'], ['りんご飴', 'チョコバナナ', '人形焼き'], ['かき氷', 'ラムネとベビーカステラ']], kcal: 630, months: [7, 8] }
+    ] },
+    trips: { cooldown: 90, affection: 6, habit: 0.05, stretch: 4, spots: [
+      { id: 'hakone', name: '箱根', price: 40000, food: ['黒たまご', '湯葉丼', '温泉まんじゅう'] },
+      { id: 'atami', name: '熱海', price: 36000, food: ['干物定食', '海鮮丼', '熱海プリン'] },
+      { id: 'kusatsu', name: '草津', price: 45000, food: ['舞茸天ぷら', '温泉卵', '温泉まんじゅう'] },
+      { id: 'osaka', name: '大阪（食い倒れ）', price: 50000, food: ['たこ焼き', '串カツ', 'お好み焼き'] },
+      { id: 'sapporo', name: '札幌・小樽', price: 80000, food: ['スープカレー', 'ジンギスカン', '海鮮とソフトクリーム'] }
+    ], kcal: { ekiben: 800, walk: 1800, kaiseki: 2500, extra: 500, yashoku: 800, buffet: [1000, 3000], souvenir: 600 } },
+    // v2.8 SNS（use: often 毎晩40%・some 15%・none 投稿しない。public: 会ったことがあれば見られる／非公開は親密度35で相互フォロー）
+    sns: { chance: { often: 0.4, some: 0.15, none: 0 }, buzz: { from: 9, to: 13, chance: 0.04, rate: 10 }, growBig: 0.05, defaults: { use: 'some', public: false, startFollowers: 120 },
+      override: { karen: { use: 'often', public: true, startFollowers: 8000 }, kotori: { use: 'often', public: true, startFollowers: 3500 }, himeka: { use: 'often', public: true, startFollowers: 2000 },
+        kirara: { use: 'often', public: true, startFollowers: 1500 }, juri: { use: 'often', public: true, startFollowers: 900 }, rumi: { use: 'some', public: true, startFollowers: 600 },
+        momo: { use: 'often', public: true, startFollowers: 2400 }, ritsu: { use: 'some', public: true, startFollowers: 2400 }, ran: { use: 'often', public: true, startFollowers: 1100 },
+        mariko: { use: 'some', public: true, startFollowers: 1800 }, sumire: { use: 'often', public: true, startFollowers: 5000 }, ayano: { use: 'some', public: false, startFollowers: 80 },
+        chihaya: { use: 'none' }, kyoko: { use: 'none' }, satsuki: { use: 'none' }, yukino: { use: 'none' }, saeko: { use: 'none' }, koharu: { use: 'none' } } },
+    // v2.8 職場・学校での変化（job から種類を決める。heroines[].workType があればそちらが優先）
+    workTypes: [
+      { id: 'food', label: '食べ物の店', re: 'ファミレス|コンビニ|スーパー|デパ地下|洋菓子|パン屋|牛丼|カフェ|レストラン|居酒屋|店長', uniform: true },
+      { id: 'body', label: '体を使う仕事', re: '配達|郵便|ドライバー|看護|巫女|番頭|銭湯|警察|保育|神主|ヨガ|トレーナー|インストラクター', uniform: true },
+      { id: 'student', label: '学生', re: '大学|学生|院生' },
+      { id: 'home', label: '主婦・家にいる人', re: '主婦|専業|無職|家事' },
+      { id: 'office', label: '会社・お店の事務', re: '.' }
+    ],
+    aoi: { teisatsuChance: 0.5, teisatsuKcal: 700, teisatsuRate: 0.3, teisatsuMinAff: 15 },   // v2.8 葵の「偵察」（手料理の3割を葵が食べる）
     tsubasa: { gohanChance: 0.6, gohanKcal: 600, cookKcal: 800, mukureRate: 1.5 },   // ごはんまだ？（夕・夜の101号室）・むくれ食い（ほかの人の親密度の段階が上がった日、摂取×1.5）
     // v2.6：建て替え（ひだまりタワー）。ひだまり荘が住人の体重で限界 → レジデンスと土地を担保に奥の土地を買い、15階建てを建てる
+    // v2.8 気持ちの流れの型（claude/気持ちの流れ_型.md）。shy＝恥じらい型・resist＝抵抗型・enjoy＝満喫型・bold＝開き直り型。heroines[].mood があればそちらが優先
+    moods: {
+      shy: ['tsubasa', 'yukino', 'saya', 'aoi', 'mio', 'chihaya', 'satsuki', 'hazuki', 'saeko', 'fumino', 'risa', 'koharu'],
+      resist: ['karen', 'rio', 'rei', 'rin', 'anzu', 'shizuku', 'shizuka', 'ritsu', 'mao', 'misuzu', 'sumika'],
+      enjoy: ['hinata', 'sayuri', 'shiori', 'nagisa', 'haruka', 'nana', 'ayano', 'konatsu', 'momo', 'madoka', 'yuko', 'himari'],
+      bold: ['reina', 'kotori', 'mariko', 'sumire', 'himeka', 'ran', 'rumi', 'kirara', 'juri', 'komachi', 'kaho', 'kyoko']
+    },
+    imgAlias: { hinata: { 2: 1 }, rio: { 2: 1 }, karen: { 2: 1 }, himeka: { 2: 1 }, satsuki: { 2: 1 }, komachi: { 2: 1 }, juri: { 2: 1 }, shizuka: { 2: 1 } },   // v2.8 同じ絵の段階
+    moodNames: { shy: ['強がり', '恥じらい', '受け入れ'], resist: ['ダイエット宣言', '悔しさと再挑戦', '解放'], enjoy: ['食べる幸せ', '照れ笑い', 'とろける甘え'], bold: ['余裕', '開き直り', '自信'] },
     tower: {
       name: 'ひだまりタワー', nameIsTemp: true,
       trigger: { weightSum: 600, floorEvents: 3 },      // ひだまり荘の住人の体重の合計が600kg以上、または床のきしみ（E1）が3回で、建て替えの話になる
       rent: 50000,                                    // 1階に移った元ひだまり荘の住人の家賃（主人公の好意で、これまで＋1万円）
       rooms: { hinata: '102', reina: '103', tsubasa: '104', saya: '105', yukino: '106', sayuri: '107', kotori: '108' },   // 101は主人公
       layout: { firstFloor: 10, midFloors: [2, 12], midRooms: 10, family: 5, single: 5, luxuryFloors: [13, 14], luxuryRooms: 3 },
+      rentNew: 120000, loan: { monthly: 1500000, months: 120 },   // v2.8 2〜14階の新しい住人の家賃（マンションと同じ）と、建設の借入の返済（月末・10年）
+      arrive: { first: 3, every: 7, order: [['haruno'], ['sagisawa'], ['mikage'], ['natsume'], ['slenders'], ['mido', 'hanasaki'], ['saionji']] },   // v2.8 2〜14階の新しい住人：建て替えの3日後から、7日ごとに組ずつ入居
       bg: 'tower_ext_noon'                            // 外観（夕・夜の絵ができるまでは昼の絵）
     },
     // 15階：主人公のプライベートルーム（いくつもの風呂、ベッドルーム、プライベートプール、大きなデッキ）
@@ -644,6 +693,19 @@ window.GAME_DATA = {
 
   /* ---- 全キャラ共通の予備セリフ。ヒロインの lines にそのキーがないときに使う（口調に癖のない言い方） ---- */
   // 実績（v1.8・S9）。判定はエンジン側（id で対応）
+  // v2.8 SNS の共通のコメント（体型段階のグループごと）・投稿文
+  snsComments: {
+    0: ['おいしそう！', 'どこのお店？', 'いいなー、私も食べたい', '映えてる〜'],
+    1: ['最近ふっくらした？', '食べすぎ笑', 'その量ひとりで？', '幸せそうでなにより'],
+    2: ['顔まるくなったね', '大食いキャラ定着', 'また大盛り？', 'ほっぺがおいしそう'],
+    3: ['女王', '今日の量もすごい', '毎日の投稿が楽しみ', 'この食べっぷり、元気出る']
+  },
+  snsPosts: {
+    0: ['今日のごはん。〔写真：{food}〕', 'いただきます。〔写真：{food}〕', 'ごほうびの{food}。〔写真：{food}〕'],
+    1: ['今日もおいしかった〜。〔写真：{food}〕', 'ちょっとだけのつもりが…〔写真：{food}〕', '{food}、おかわりしちゃった。〔写真：{food}〕'],
+    2: ['また食べちゃった。〔写真：{food}〕', '大盛りにしてもらった。〔写真：{food}〕', '{food}がおいしすぎるのが悪い。〔写真：{food}〕'],
+    3: ['今日もいっぱい食べた！〔写真：{food}〕', '特盛り×2。〔写真：{food}〕', '幸せの重さ、更新中。〔写真：{food}〕']
+  },
   achievements: [
     { id: 'big100',   name: 'はじめての大台',  desc: '誰かが100kgを超えた' },
     { id: 'double',   name: '倍々ゲーム',      desc: '誰かが最初の体重の2倍になった' },
@@ -656,7 +718,13 @@ window.GAME_DATA = {
     { id: 'keep3',    name: '理想の体型',      desc: '3人を「体型を保つ」にした' },
     { id: 'paradise', name: 'ひだまりの楽園',  desc: '全員攻略かつ全員段階15' },
     { id: 'tax',      name: 'きちんと納税',    desc: '1年間、固定資産税をすべて期限内に払った' },
-    { id: 'graduate', name: '卒業おめでとう',  desc: '大学を卒業した' }
+    { id: 'graduate', name: '卒業おめでとう',  desc: '大学を卒業した' },
+    { id: 'dateAll',  name: '食べ歩きの達人',  desc: 'デートで5つの行き先すべてに行った' },
+    { id: 'trip3',    name: '湯けむりの思い出', desc: '旅行に3回行った' },
+    { id: 'aikagi',   name: '合鍵の重み',      desc: '合鍵を渡した' },
+    { id: 'live',     name: 'ふたり暮らし',    desc: '同棲をはじめた' },
+    { id: 'buzz',     name: 'バズった管理人',  desc: '誰かの投稿がバズった' },
+    { id: 'album100', name: '思い出のアルバム', desc: '大事な場面を100個見た' }
   ],
   // エンディング（v1.6）。{best}＝いちばん親しい住人、{count}＝攻略した人数、{year}＝年度、〇〇＝主人公
   endings: {
@@ -792,6 +860,35 @@ window.GAME_DATA = {
     lateMeal_famires: ['深夜のファミレスって、なんでこんなにおいしいんだろ', 'この時間のドリンクバー、なんだか特別な感じ', '夜中のパフェ…罪の味がする'],
     lateMeal: ['夜食って、どうしてこんなに罪の味がするんだろうね'],
     // v2.6：建て替え・15階
+    // v2.8 攻略後の楽しみ（キャラ専用が無いときの共通の文）
+    cookForMe: ['今日はわたしが作るね。〇〇くんは座ってて', 'ごはん作りに来たよ。台所、借りるね', 'たまには、わたしにも作らせて'],
+    cookTaste: ['んー…もうちょっと味見', '味見、味見。…あ、もう一口だけ', 'おいしくできてるか、確かめないとね'],
+    cookPraise: ['ほんと？ …じゃあ、次はもっとたくさん作るね', 'えへへ。おかわりもあるよ', 'よかった。…わたしも、もう一杯食べちゃお'],
+    cookFail: ['…ごめん、焦がしちゃった。出前にしよっか', 'あれ…？ 本に書いてあるとおりにしたのに…。ピザ、頼も？'],
+    cookTogether: ['うん、今度は一緒に作ろ。…約束ね', '一緒に作ったら、きっと倍おいしいね'],
+    cookTease: { shy: ['み、味見だもん！ しすぎてないもん…', 'う…見てたの？ 恥ずかしい…', '味見は大事なの。…ふふ、もうごまかさないよ'],
+      resist: ['味見は最小限よ。…最小限のつもりだったの！', '…わかってる。また食べすぎた。次は気をつける', 'いいの。作る人の特権だから'],
+      enjoy: ['えへへ、だっておいしいんだもん', 'また太っちゃうね。…でも、味見はやめられないの', '味見はね、いちばん幸せな時間なの〜'],
+      bold: ['味見しないで作る人なんている？', '文句ある？ おいしくできたでしょ', '作った人がいちばん食べる。当然でしょ？'] },
+    aikagi: ['…これ、わたしの部屋の鍵。〇〇くんに持っててほしい', 'ねえ、合鍵、交換しない？ …いつでも来ていいように'],
+    stayOver: [['来ちゃった。…合鍵、使ってみたくて'], ['おかえり。勝手にくつろいでた'], ['おかえり〜。お腹すいたから、冷蔵庫見てもいい？'], ['おかえり。…ここ、もうわたしの部屋みたいだね']],
+    stayBeg: ['…ねえ、起きてる？ お腹すいちゃった', 'なんか食べたい。…こんな時間だけど、だめ？'],
+    liveTogether: ['…一緒に住むの？ ほんとに？ …うん。うれしい', '毎日、〇〇くんのごはんが食べられるんだね'],
+    liveDaily: ['おはよ。…朝ごはん、なに？', 'ただいま。今日の晩ごはん、楽しみにしてた', 'いただきます。…毎日おいしいの、ずるいよ'],
+    dateStart: ['デート？ 行く行く！ お腹すかせてきたからね', '食べ歩き？ …楽しみ。今日は遠慮しないから'],
+    dateEnd: ['今日はいっぱい食べたね。…また連れてきてね', 'お腹ぱんぱん。…でも、すっごく楽しかった'],
+    tripStart: ['旅行なんて、ひさしぶり。…駅弁、2つ買っちゃおうかな', '一泊二日、ふたりきりだね。…おいしいもの、全部食べよ'],
+    tripScale: { 0: ['旅館の体重計…乗ってみよ。…え、そんなに？', '…見なかったことにする'], 1: ['体重計、こっそり乗ってきた。…数字は言わない', 'あ、あの体重計、壊れてると思う'], 2: ['…乗った。増えてた。でも、旅行だし', '体重計の針、止まらなかった…'], 3: ['体重計、振り切れそうだった。ふふ、旅行のせいだね', '何kgだったと思う？ …ひみつ。でも、幸せの重さ'] },
+    tripEnd: ['楽しかった…。帰りたくないな', 'また来ようね。…次は、もっと食べられるお店に'],
+    uniformUp: { food: ['制服、ひとつ大きいのに替えてもらった。…店長に「よく食べるもんね」って言われた'], body: ['作業着、サイズを上げてもらったの。動きやすいからいいけど'], office: ['会社の制服、ワンサイズ上にしてもらった。…総務の人の目が気になる'], student: [''], home: [''] },
+    uniformSpecial: ['制服、もう普通のサイズがなくて。特注になっちゃった', '特注の制服でも、ボタンがきつくて…'],
+    workLife: {
+      food: { 6: ['最近、試食とまかないを任されるようになったの。…なんでだろうね'], 9: ['「あなたが食べてると、お客さんも買ってくれる」って言われた。食べっぷりで売上が上がったんだって'], 13: ['お店の看板娘、ってことになっちゃった。毎日なにか差し入れてもらえるの'] },
+      body: { 6: ['最近、階段で息が切れるの。…仕事、体力いるのに'], 9: ['配置換えの話が出てる。内勤とか、窓口とか…'], 13: ['新しい持ち場、慣れてきたよ。座ってできる仕事も悪くないね'] },
+      office: { 6: ['会社の椅子が、ぎしって鳴るの。…私のせいじゃないよね？'], 9: ['健康診断、再検査になっちゃった。…数字がね'], 13: ['職場で「頼れる先輩」って言われてるの。お菓子が机に集まってくる'] },
+      student: { 6: ['ゼミの子に「最近ふっくらした？」って言われた'], 9: ['体育の実習、ちょっと大変だった。…息が上がっちゃって'], 13: ['学食のおばちゃんに顔を覚えられた。いつも大盛りにしてくれるの'] },
+      home: { 6: ['ご近所さんに「ふっくらしたわね」って言われちゃった'], 9: ['服、買い替えたら家計がね…全部サイズが変わっちゃって'], 13: ['「ふくよかになって、幸せそう」って言われたの。…そうかも'] } },
+    towerArrive: ['はじめまして。今日から、こちらに住むことになりました。よろしくお願いします', '引っ越してきました。大家さんですよね？ これ、つまらないものですが'],
     towerMove: ['新しい部屋、ぴかぴか…！ ほんとに、この家賃でいいの？', 'エレベーターがあるの、助かる。…階段、もうきつかったから', '床がきしまない…！ 跳ねても平気だね', 'ありがとう。前の部屋も好きだったけど、ここなら、ずっと住める'],
     invite15: ['すごい…街が全部見える。ここ、ほんとにあなたの部屋なの？', 'ベッド、大きすぎない？ …ふふ、迷子になりそう', '夜景、きれい…。ねえ、今日はここにいていい？'],
     pool: ['プールなんて何年ぶりだろ…。水着、きつくなってないかな', 'プールサイドで食べるピザ、最高だね', '浮き輪につかまってるだけで、楽しい'],
@@ -904,7 +1001,7 @@ window.GAME_DATA = {
     rio: ['栄養学部の同級生', 'ジムのインストラクター', 'ひなた先輩'],
     rei: ['法律事務所の先輩', '依頼人', '司法修習の同期'],
     shiori: ['花屋の元同僚', '拓海くんとのビデオ通話', 'マンションの奥さんたち'],
-    aoi: ['女子大の友達', '英会話教室の生徒さん', '留学先の友達のSNS'],
+    aoi: ['ゼミの仲間', '法学部の同級生', '図書館の常連'],
     mariko: ['お店の常連客', '同僚のホステス', '昔のお客さん'],
     sumire: ['ブランドのスタッフ', '取引先のバイヤー', 'ファッション誌の編集者'],
     mio: ['学生自治会の後輩', '寮の後輩', '神戸の実家'],

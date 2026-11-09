@@ -199,7 +199,7 @@ window.addScenes('rei', [
   } },
 
   { id: 'rei_t04', type: 'talk', if: { minStage: 9, maxStage: 12 }, nodes: {
-    start: { say: ['（グレーのロングカーディガンの前を、ぎゅっと閉じている）', '…あまり見ないでください。根拠もなく、恥ずかしいので'],
+    start: { say: ['（グレーのロングカーディガンの前を、ぎゅっと閉じている）', '…節制計画、第五版も失敗しました。…根拠もなく、悔しいです'],
       choices: [
         { text: '仕事のほうは？', next: 'work' },
         { text: '実家には帰った？', next: 'home' }
