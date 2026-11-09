@@ -27,7 +27,7 @@ window.GAME_DATA.heroines.push({
   mood: 'shy',
   bodyType: { frame: 'wave', fat: 'pear' },
   sizes: { bust: 82, under: 67, waist: 54, hip: 83 },
-  images: {1: 'img/risa_1.png', 2: 'img/risa_2.png', 3: 'img/risa_3.png', 4: 'img/risa_4.png', 5: 'img/risa_5.png', 6: 'img/risa_6.png', 7: 'img/risa_7.png', 8: 'img/risa_8.png', 9: 'img/risa_9.png', 10: 'img/risa_10.png'},
+  images: {1: 'img/risa_1.png', 2: 'img/risa_2.png', 3: 'img/risa_3.png', 4: 'img/risa_4.png', 5: 'img/risa_5.png', 6: 'img/risa_6.png', 7: 'img/risa_7.png', 8: 'img/risa_8.png', 9: 'img/risa_9.png', 10: 'img/risa_10.png', 11: 'img/risa_11.png', 12: 'img/risa_12.png', 13: 'img/risa_13.png', 14: 'img/risa_14.png', 15: 'img/risa_15.png'},
   lines: {
     greetMorning: [
       ['あ、あの…おはようございます', 'お、おはようございます。…お母さんに、お話ししちゃだめって言われてて…'],

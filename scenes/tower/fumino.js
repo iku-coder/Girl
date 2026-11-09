@@ -28,7 +28,7 @@ window.GAME_DATA.heroines.push({
   mood: 'shy',
   bodyType: { frame: 'wave', fat: 'apple' },
   sizes: { bust: 80, under: 65, waist: 55, hip: 82 },
-  images: {1: 'img/fumino_1.png', 2: 'img/fumino_2.png', 3: 'img/fumino_3.png', 4: 'img/fumino_4.png', 5: 'img/fumino_5.png', 6: 'img/fumino_6.png', 7: 'img/fumino_7.png', 8: 'img/fumino_8.png', 9: 'img/fumino_9.png'},
+  images: {1: 'img/fumino_1.png', 2: 'img/fumino_2.png', 3: 'img/fumino_3.png', 4: 'img/fumino_4.png', 5: 'img/fumino_5.png', 6: 'img/fumino_6.png', 7: 'img/fumino_7.png', 8: 'img/fumino_8.png', 9: 'img/fumino_9.png', 10: 'img/fumino_10.png', 11: 'img/fumino_11.png', 12: 'img/fumino_12.png', 13: 'img/fumino_13.png', 14: 'img/fumino_14.png', 15: 'img/fumino_15.png'},
   lines: {
     greetMorning: [
       ['おはようございます。図書館の開館に間に合わせたいので、失礼します', 'おはようございます、オーナーさん。…朝早いんですね'],

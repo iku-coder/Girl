@@ -30,7 +30,7 @@ window.GAME_DATA.heroines.push({
   mood: 'resist',
   bodyType: { frame: 'wave', fat: 'hidden' },
   sizes: { bust: 84, under: 66.5, waist: 57, hip: 84 },
-  images: {1: 'img/shizuka_1.png', 2: 'img/shizuka_2.png', 3: 'img/shizuka_3.png', 4: 'img/shizuka_4.png', 5: 'img/shizuka_5.png', 6: 'img/shizuka_6.png', 7: 'img/shizuka_7.png', 8: 'img/shizuka_8.png', 9: 'img/shizuka_9.png', 10: 'img/shizuka_10.png', 11: 'img/shizuka_11.png'},
+  images: {1: 'img/shizuka_1.png', 2: 'img/shizuka_2.png', 3: 'img/shizuka_3.png', 4: 'img/shizuka_4.png', 5: 'img/shizuka_5.png', 6: 'img/shizuka_6.png', 7: 'img/shizuka_7.png', 8: 'img/shizuka_8.png', 9: 'img/shizuka_9.png', 10: 'img/shizuka_10.png', 11: 'img/shizuka_11.png', 12: 'img/shizuka_12.png', 13: 'img/shizuka_13.png', 14: 'img/shizuka_14.png', 15: 'img/shizuka_15.png'},
   lines: {
     greetMorning: [
       ['おはようございます。…朝から掃除ですか。ご苦労さまです', 'おはようございます、オーナーさん。娘たちはもう出ましたので、ご用件は私に'],

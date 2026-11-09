@@ -251,6 +251,7 @@ textarea{width:100%;min-height:90px;background:var(--ink);color:var(--paper);bor
 <script src="data.js"></script>
 <script src="heroines.js"></script>
 <script src="life.js"></script>
+<script src="img_assets.js"></script>
 <script src="scenes.js"></script>
 <script>window.SCENE_ADDS = []; window.addScenes = (id, list, extra) => window.SCENE_ADDS.push({ id, list, extra });
 window.EAT_LINES = {}; window.addEatLines = (id, o) => { window.EAT_LINES[id] = o; };
@@ -2426,6 +2427,7 @@ function imageOf(h, st) {
   let src = nearImg(h.images, st.stage);
   if (h.routes && st.route && st.stage >= (h.routes.fromStage || 1) && h.routes[st.route] && h.routes[st.route][st.stage]) src = h.routes[st.route][st.stage];
   if (src && window.IMAGE_EXT) src = src.replace(/\.png$/, window.IMAGE_EXT);
+  if (src && window.IMG_ASSET && window.IMG_ASSET[src]) src = window.IMG_ASSET[src];   // v2.8.1 素材置き場（公開版のファイル数の上限を超える立ち絵）
   return src;
 }
 function portrait(h, st) {
@@ -2783,6 +2785,7 @@ function imageAt(h, n, st) {
   let src = nearImg(h.images, n);
   if (h.routes && st.route && n >= (h.routes.fromStage || 1) && h.routes[st.route] && h.routes[st.route][n]) src = h.routes[st.route][n];
   if (src && window.IMAGE_EXT) src = src.replace(/\.png$/, window.IMAGE_EXT);
+  if (src && window.IMG_ASSET && window.IMG_ASSET[src]) src = window.IMG_ASSET[src];
   return src || '';
 }
 function galleryHTML() {
